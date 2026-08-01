@@ -1,4 +1,4 @@
-# Multi-Agent Research Platform — Zeroth Review MVP
+# Multi-Agent Research Platform 
 ### LLM: Google Gemini free tier — no local model, no paid API
 
 ## What's working end-to-end
