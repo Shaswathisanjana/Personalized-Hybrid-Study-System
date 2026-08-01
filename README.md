@@ -44,15 +44,79 @@ export SEMANTIC_SCHOLAR_API_KEY=...
 **No LLM installed locally, no GPU/RAM requirements for inference.**
 
 ## Run
+# Running the Project
 
-Terminal 1 (backend):
+## 1. Activate the Conda Environment
+
+```bash
+conda activate research_agent
+```
+
+## 2. Navigate to the Project Directory
+
+```bash
+cd D:\sem7\research_agent
+```
+
+## 3. Install Dependencies (First Time Only)
+
+```bash
+pip install -r requirements.txt
+```
+
+## 4. Start the Backend Server
+
 ```bash
 uvicorn backend.main:app --reload --port 8000
 ```
 
-Terminal 2 (frontend):
+The backend will be available at:
+
+- **API:** http://127.0.0.1:8000
+## 5. Run the Frontend
+
+# Running the Project
+
+## Steps- In new terminal(Anaconda Prompt)
+
+### 1. Activate the Conda environment
+
+```bash
+conda activate research_agent
+```
+
+### 2. Navigate to the project directory
+
+```bash
+cd /d D:\sem7\research_agent
+```
+
+### 3. Run the Streamlit application
+
 ```bash
 streamlit run frontend/app.py
+```
+
+The application will be available in your browser after the Streamlit server starts (typically at **http://localhost:8501**).
+
+The frontend will be available at:
+
+- **Frontend:** http://localhost:3000
+
+## 6. Verify Gemini Integration (Optional)
+
+To verify the available Gemini models:
+
+```bash
+python test_models.py
+```
+
+## 7. Environment Variables
+
+Create a `.env` file in the project root and add the required API keys.
+
+```env
+GEMINI_API_KEY=your_gemini_api_key
 ```
 
 Then open the Streamlit URL it prints (usually http://localhost:8501).
