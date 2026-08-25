@@ -122,14 +122,12 @@ def build_initial_state(query: str) -> dict:
 
 
 PIPELINE_LABELS = {
-    "search_node":     "🔍 Search Agent",
-    "reading_node":    "📖 Reading Agent",
-    "lit_review_node": "📝 Literature Review Agent",
-    "gap_node":        "🔬 Gap Detection Agent",
-    "novelty_node":    "💡 Novelty Agent",
-    "writing_node":    "✍️ Writing Agent",
-    "citation_node":   "📚 Citation Agent",
-    "qa_node":         "💬 Q&A Agent",
+    "search_node":   "🔍 Search Agent",
+    "reading_node":  "📖 Reading Agent",
+    "analysis_node": "🔬 Analysis Agent (Lit Review · Gaps · Novelty)",
+    "writing_node":  "✍️ Writing Agent",
+    "citation_node": "📚 Citation Agent",
+    "qa_node":       "💬 Q&A Agent",
 }
 
 
@@ -155,7 +153,7 @@ with st.sidebar:
         st.caption("Run a research query to see the pipeline.")
 
     st.markdown("---")
-    st.caption("Powered by LangGraph · ChromaDB · GPT-4o")
+    st.caption("Powered by LangGraph · ChromaDB · Gemini")
 
 
 # ══════════════════════════════════════════════════════════════════════════════

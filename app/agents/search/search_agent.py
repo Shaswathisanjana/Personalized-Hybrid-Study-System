@@ -15,7 +15,8 @@ logger = logging.getLogger(__name__)
 async def search_node(state: AgentState) -> dict:
     """Search all configured academic sources and deduplicate results."""
     topic = state["topic"]
-    per_source = max(5, settings.MAX_PAPERS_PER_SEARCH // 3)
+    # Distribute budget evenly across 3 sources; at least 1 each
+    per_source = max(1, settings.MAX_PAPERS_PER_SEARCH // 3)
 
     results = await asyncio.gather(
         search_semantic_scholar(topic, limit=per_source),
@@ -34,7 +35,10 @@ async def search_node(state: AgentState) -> dict:
             all_papers.extend(r)
 
     deduped = deduplicate(all_papers)
+    # Hard cap: never send more papers to reading than the configured limit
+    deduped = deduped[:settings.MAX_PAPERS_PER_SEARCH]
     logger.info(f"Search: found {len(deduped)} unique papers for '{topic}'")
+
 
     pipeline = state.get("pipeline", [])
     current_idx = pipeline.index("search_node") if "search_node" in pipeline else -1
