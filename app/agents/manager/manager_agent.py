@@ -6,6 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from app.core.state import AgentState
 from app.core.llm import get_llm
+from app.core.json_utils import parse_llm_json
 from app.core.router import INTENT_TO_PIPELINE
 
 logger = logging.getLogger(__name__)
@@ -31,16 +32,8 @@ async def manager_node(state: AgentState) -> dict:
     result = await chain.ainvoke({"query": state["user_query"]})
 
     raw = result.content.strip()
-    # Strip markdown fences Gemini sometimes adds
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    raw = raw.strip()
-
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError:
+    parsed = parse_llm_json(raw, context="manager_node")
+    if not parsed:
         logger.warning(f"Manager: JSON parse failed on: {raw!r}, defaulting to full_report")
         parsed = {"intent": "full_report", "topic": state["user_query"]}
 

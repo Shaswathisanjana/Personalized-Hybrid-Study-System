@@ -31,11 +31,20 @@ def route_from_manager(state: AgentState) -> str:
 def route_next(state: AgentState) -> str:
     """Advance to the next node in the pipeline, or END."""
     pipeline = state.get("pipeline", [])
-    current = state.get("current_step", "")
+    current  = state.get("current_step", "")
+
     if state.get("errors") and state.get("retry_count", 0) >= 3:
         return "error_node"
+
+    # If search produced 0 papers, no point running reading/analysis/writing —
+    # they will hallucinate. Stop the pipeline here.
+    if current == "search_node" and not state.get("papers"):
+        logger.warning("route_next: 0 papers found — stopping pipeline early")
+        return END
+
     try:
         idx = pipeline.index(current)
         return pipeline[idx + 1]
     except (ValueError, IndexError):
         return END
+

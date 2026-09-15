@@ -25,7 +25,9 @@ async def parse_pdf_with_fallback(paper) -> tuple[str, float]:
 
 
 async def _download_and_extract(pdf_url: str) -> str:
-    async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
+    # 5s connect, 12s read — falls back to abstract quickly if PDF is slow/unreachable
+    timeout = httpx.Timeout(timeout=12.0, connect=5.0)
+    async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
         resp = await client.get(pdf_url)
         resp.raise_for_status()
 

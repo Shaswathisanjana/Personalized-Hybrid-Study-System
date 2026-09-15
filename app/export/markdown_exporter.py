@@ -6,7 +6,8 @@ from configs.settings import settings
 
 class MarkdownExporter:
     def export(self, report: ResearchReport) -> Path:
-        output_dir = Path(settings.EXPORT_DIR)
+        # Resolve to absolute so paths work regardless of Streamlit's CWD
+        output_dir = Path(settings.EXPORT_DIR).resolve()
         output_dir.mkdir(parents=True, exist_ok=True)
         path = output_dir / f"report_{report.report_id}.md"
         content = self._frontmatter(report) + report.full_markdown

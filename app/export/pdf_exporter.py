@@ -39,7 +39,7 @@ class PDFExporter:
             f"<!DOCTYPE html><html lang='en'><head><meta charset='UTF-8'>"
             f"<title>{report.title}</title></head><body>{html_body}</body></html>"
         )
-        output_dir = Path(settings.EXPORT_DIR)
+        output_dir = Path(settings.EXPORT_DIR).resolve()
         output_dir.mkdir(parents=True, exist_ok=True)
         path = output_dir / f"report_{report.report_id}.pdf"
         HTML(string=full_html).write_pdf(str(path), stylesheets=[CSS(string=_CSS)])

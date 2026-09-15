@@ -1,11 +1,8 @@
 from __future__ import annotations
-import asyncio
 import logging
 
 from app.core.state import AgentState
-from app.agents.search.sources.semantic_scholar import search_semantic_scholar
 from app.agents.search.sources.arxiv import search_arxiv
-from app.agents.search.sources.openalex import search_openalex
 from app.agents.search.deduplicator import deduplicate
 from configs.settings import settings
 
@@ -13,39 +10,34 @@ logger = logging.getLogger(__name__)
 
 
 async def search_node(state: AgentState) -> dict:
-    """Search all configured academic sources and deduplicate results."""
-    topic = state["topic"]
-    # Distribute budget evenly across 3 sources; at least 1 each
-    per_source = max(1, settings.MAX_PAPERS_PER_SEARCH // 3)
-
-    results = await asyncio.gather(
-        search_semantic_scholar(topic, limit=per_source),
-        search_arxiv(topic, limit=per_source),
-        search_openalex(topic, limit=per_source),
-        return_exceptions=True,
-    )
-
-    all_papers = []
+    """Search arXiv for papers on the given topic."""
+    topic  = state["topic"]
+    target = settings.MAX_PAPERS_PER_SEARCH
     errors = []
-    for r in results:
-        if isinstance(r, Exception):
-            errors.append(str(r))
-            logger.warning(f"Search source failed: {r}")
-        else:
-            all_papers.extend(r)
 
-    deduped = deduplicate(all_papers)
-    # Hard cap: never send more papers to reading than the configured limit
-    deduped = deduped[:settings.MAX_PAPERS_PER_SEARCH]
-    logger.info(f"Search: found {len(deduped)} unique papers for '{topic}'")
+    try:
+        papers = await search_arxiv(topic, limit=target)
+        logger.info(f"Search: arXiv returned {len(papers)} papers for '{topic}'")
+    except Exception as e:
+        logger.warning(f"arXiv search failed: {e}")
+        errors.append(f"arXiv search failed: {e}")
+        papers = []
 
+    if not papers:
+        errors.append(
+            "⚠️ arXiv search returned no results. Check your internet connection "
+            "or try a different/simpler topic keyword."
+        )
 
-    pipeline = state.get("pipeline", [])
+    deduped = deduplicate(papers)[:target]
+    logger.info(f"Search: {len(deduped)} unique papers found for '{topic}'")
+
+    pipeline    = state.get("pipeline", [])
     current_idx = pipeline.index("search_node") if "search_node" in pipeline else -1
-    next_step = pipeline[current_idx + 1] if current_idx + 1 < len(pipeline) else "END"
+    next_step   = pipeline[current_idx + 1] if current_idx + 1 < len(pipeline) else "END"
 
     return {
-        "papers": deduped,
+        "papers":       deduped,
         "current_step": next_step,
-        "errors": errors,
+        "errors":       errors,
     }

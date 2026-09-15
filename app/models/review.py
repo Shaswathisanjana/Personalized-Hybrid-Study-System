@@ -17,6 +17,10 @@ class LiteratureReview(BaseModel):
     strengths_and_weaknesses: str
     chronological_developments: str
     paper_ids_covered: list[str] = Field(default_factory=list)
+    per_paper_analysis: list[dict] = Field(
+        default_factory=list,
+        description="Structured per-paper breakdown with metrics, methods, datasets, etc."
+    )
 
 
 class ResearchGap(BaseModel):

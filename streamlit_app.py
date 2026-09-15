@@ -8,6 +8,9 @@ import sys
 import os
 from pathlib import Path
 
+# Suppress ChromaDB telemetry errors (posthog version mismatch)
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
+
 import streamlit as st
 
 # ── Page config ──────────────────────────────────────────────────────────────
@@ -153,7 +156,16 @@ with st.sidebar:
         st.caption("Run a research query to see the pipeline.")
 
     st.markdown("---")
-    st.caption("Powered by LangGraph · ChromaDB · Gemini")
+    from configs.settings import settings as _s
+    max_papers = st.slider(
+        "Max papers per search",
+        min_value=1, max_value=15, value=_s.MAX_PAPERS_PER_SEARCH, step=1,
+        help="Lower = faster pipeline. Higher = more thorough report.",
+    )
+    _s.MAX_PAPERS_PER_SEARCH = max_papers
+
+    st.markdown("---")
+    # st.caption("Powered by LangGraph · ChromaDB · Gemini")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -276,35 +288,50 @@ elif page == "🔍 Research":
                 for e in errors:
                     st.warning(e)
 
+        # ── 0 papers guard — show friendly error and stop ──
+        if len(papers) == 0:
+            st.error(
+                "🔍 **No papers were found.** This usually means the search APIs are temporarily "
+                "unavailable (Semantic Scholar returns 500 errors sometimes).\n\n"
+                "**Try again in 1-2 minutes** — the arXiv fallback will kick in automatically."
+            )
+            st.stop()
+
         # ── Papers table ──
         if papers:
             with st.expander(f"📚 {len(papers)} Papers Discovered", expanded=False):
                 for p in papers:
                     cols = st.columns([3, 1, 1, 1])
-                    cols[0].markdown(f"**{p.get('title','—')}**")
-                    cols[1].caption(", ".join(p.get("authors", [])[:2]))
-                    cols[2].caption(str(p.get("year", "—")))
-                    cols[3].caption(p.get("source", "—"))
+                    # p may be a PaperMetadata Pydantic object or a plain dict
+                    _get = (lambda k, d=None: getattr(p, k, d)) if hasattr(p, "__fields__") else p.get
+                    cols[0].markdown(f"**{_get('title', '—')}**")
+                    cols[1].caption(", ".join((_get('authors') or [])[:2]))
+                    cols[2].caption(str(_get('year') or '—'))
+                    cols[3].caption(_get('source') or '—')
 
         # ── Downloads ──
-        if report.get("markdown_path"):
+        _export_files = [
+            ("📄 Markdown", "markdown_path", "text/markdown"),
+            ("📝 DOCX",     "docx_path",     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+            ("🖨️ PDF",      "pdf_path",      "application/pdf"),
+        ]
+        available = [(fmt, report.get(k), mime) for fmt, k, mime in _export_files
+                     if report.get(k) and Path(report[k]).exists()]
+        if available:
             st.markdown("### 📥 Download Report")
-            dl1, dl2, dl3 = st.columns(3)
-            for col, fmt, path_key, mime in [
-                (dl1, "📄 Markdown", "markdown_path", "text/markdown"),
-                (dl2, "📝 DOCX",     "docx_path",     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
-                (dl3, "🖨️ PDF",      "pdf_path",      "application/pdf"),
-            ]:
-                fpath = report.get(path_key)
-                if fpath and Path(fpath).exists():
-                    with col:
-                        st.download_button(
-                            label=fmt,
-                            data=Path(fpath).read_bytes(),
-                            file_name=Path(fpath).name,
-                            mime=mime,
-                            use_container_width=True,
-                        )
+            dl_cols = st.columns(len(available))
+            for col, (fmt, fpath, mime) in zip(dl_cols, available):
+                with col:
+                    st.download_button(
+                        label=fmt,
+                        data=Path(fpath).read_bytes(),
+                        file_name=Path(fpath).name,
+                        mime=mime,
+                        use_container_width=True,
+                        key=f"dl_research_{Path(fpath).name}",
+                    )
+        elif report:
+            st.info("⏳ Export files are being generated — go to **📄 Report Viewer** to download once ready.")
 
         if report:
             st.info("👆 Go to **📄 Report Viewer** to read the full report, or **💬 Q&A Chat** to ask questions about it.")
@@ -333,23 +360,38 @@ elif page == "📄 Report Viewer":
         st.stop()
 
     st.markdown(f"# {report.get('title', 'Research Report')}")
-    st.caption(f"Topic: **{report.get('topic', '—')}** · Generated: {report.get('generated_at', '—')[:10]}")
+    generated_at = str(report.get('generated_at', '—'))[:10]
+    st.caption(f"Topic: **{report.get('topic', '—')}** · Generated: {generated_at}")
     st.markdown("---")
 
     sections = [
-        ("📋 Abstract",              report.get("abstract", "")),
-        ("1️⃣ Introduction",         report.get("introduction", "")),
-        ("2️⃣ Literature Review",    report.get("literature_review", "")),
-        ("3️⃣ Comparative Analysis", report.get("comparative_analysis", "")),
-        ("4️⃣ Research Gaps",        report.get("research_gaps", "")),
-        ("5️⃣ Future Directions",    report.get("future_directions", "")),
+        ("1️⃣ Introduction",            report.get("introduction", "")),
+        ("2️⃣ Literature Review",       report.get("literature_review", "")),
+        ("3️⃣ Comparison Table",        report.get("paper_comparison_table", "")),
+        ("4️⃣ Comparative Analysis",    report.get("comparative_analysis", "")),
+        ("5️⃣ Research Gaps",           report.get("research_gaps", "")),
+        ("6️⃣ Future Directions",       report.get("future_directions", "")),
     ]
+
+    # ── Sections ──
+    all_empty = all(not content for _, content in sections)
+    if all_empty:
+        st.warning(
+            "⚠️ All report sections are empty — this usually means the LLM returned "
+            "malformed JSON. Check the server logs for `parse_llm_json` warnings."
+        )
+        with st.expander("🔧 Debug: raw report keys"):
+            st.json({k: (v[:200] + "…" if isinstance(v, str) and len(v) > 200 else v)
+                     for k, v in report.items() if k not in ("citations",)})
 
     tab_labels = [s[0] for s in sections]
     tabs = st.tabs(tab_labels)
     for tab, (_, content) in zip(tabs, sections):
         with tab:
-            st.markdown(content or "_Section not available._")
+            if content:
+                st.markdown(content)
+            else:
+                st.caption("_Section not available._")
 
     # ── Research Gaps visual breakdown ──
     gap_analysis = final.get("gap_analysis") or {}
@@ -378,6 +420,7 @@ elif page == "📄 Report Viewer":
     st.markdown("---")
     st.markdown("### 📥 Download")
     dl1, dl2, dl3 = st.columns(3)
+    any_available = False
     for col, fmt, path_key, mime in [
         (dl1, "📄 Markdown", "markdown_path", "text/markdown"),
         (dl2, "📝 DOCX",     "docx_path",     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
@@ -385,6 +428,7 @@ elif page == "📄 Report Viewer":
     ]:
         fpath = report.get(path_key)
         if fpath and Path(fpath).exists():
+            any_available = True
             with col:
                 st.download_button(
                     label=fmt,
@@ -392,7 +436,13 @@ elif page == "📄 Report Viewer":
                     file_name=Path(fpath).name,
                     mime=mime,
                     use_container_width=True,
+                    key=f"dl_viewer_{path_key}",
                 )
+    if not any_available:
+        st.warning(
+            "⚠️ Export files not found. This happens when the pipeline failed before the "
+            "Writing Agent ran (e.g. 0 papers found). **Go to 🔍 Research and run the query again.**"
+        )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
