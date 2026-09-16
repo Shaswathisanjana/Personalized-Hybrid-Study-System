@@ -4,29 +4,39 @@ from app.cognitive.evidence_store import EvidenceStore
 from app.cognitive.mastery_engine import MasteryEngine
 from app.cognitive.conflict_detector import ConflictDetector
 from app.cognitive.conflict_resolver import ConflictResolver
+from app.cognitive.misconception_manager import (
+    CognitiveMisconceptionManager,
+)
 
 
 class CognitiveEngine:
     """
-    Central cognitive processing layer shared by all agents.
+    Central cognitive engine for the shared student model.
 
     Responsibilities:
-    1. Store cross-agent evidence
-    2. Update concept mastery
-    3. Update detected misconceptions
-    4. Detect cognitive conflicts
-    5. Maintain active conflicts
-    6. Resolve conflicts using diagnostic evidence
+    1. Receive evidence from Learning, Research and Coding agents.
+    2. Store the evidence.
+    3. Update concept mastery.
+    4. Detect cross-agent cognitive conflicts.
+    5. Resolve conflicts using diagnostic evidence.
+    6. Create and update misconception hypotheses.
     """
 
     def __init__(self):
-
         self.evidence_store = EvidenceStore()
         self.mastery_engine = MasteryEngine()
         self.conflict_detector = ConflictDetector()
         self.conflict_resolver = ConflictResolver()
 
-        # (user_id, concept_name) -> list of conflicts
+        self.misconception_manager = (
+            CognitiveMisconceptionManager()
+        )
+
+        # Key:
+        # (user_id, concept_name)
+        #
+        # Value:
+        # list of currently unresolved conflicts
         self.active_conflicts = {}
 
 
@@ -39,148 +49,191 @@ class CognitiveEngine:
         student: StudentCognitiveModel,
         evidence: LearningEvidence,
     ):
+        """
+        Process one new piece of cognitive evidence.
 
-        # --------------------------------------------------
-        # STEP 1: Validate student
-        # --------------------------------------------------
+        Evidence may come from:
+        - Learning Agent
+        - Research Agent
+        - Coding Agent
+        """
+
+        # ------------------------------------------------
+        # STEP 1: VALIDATE USER
+        # ------------------------------------------------
 
         if student.user_id != evidence.user_id:
             raise ValueError(
-                "Evidence belongs to a different student."
+                "Evidence user_id does not match "
+                "student user_id."
             )
 
 
-        # --------------------------------------------------
-        # STEP 2: Get previous evidence
-        # --------------------------------------------------
+        # ------------------------------------------------
+        # STEP 2: GET PREVIOUS EVIDENCE
+        # ------------------------------------------------
+        #
+        # IMPORTANT:
+        # We retrieve previous evidence BEFORE storing
+        # the new evidence.
+        #
+        # Otherwise, the new evidence could be compared
+        # with itself during conflict detection.
+        # ------------------------------------------------
 
         previous_evidence = (
-            self.evidence_store.get_evidence_for_concept(
+            self.evidence_store
+            .get_evidence_for_concept(
                 user_id=evidence.user_id,
                 concept_name=evidence.concept_name,
             )
         )
 
 
-        # --------------------------------------------------
-        # STEP 3: Detect new cross-agent conflicts
-        # --------------------------------------------------
+        # ------------------------------------------------
+        # STEP 3: DETECT CROSS-AGENT CONFLICTS
+        # ------------------------------------------------
 
         new_conflicts = []
 
-        for old_evidence in previous_evidence:
+        for previous in previous_evidence:
 
-            # Compare evidence only across different agents
-            if (
-                old_evidence.source_agent
-                == evidence.source_agent
-            ):
-                continue
-
-            conflict = self.conflict_detector.detect(
-                old_evidence,
-                evidence,
+            conflict = (
+                self.conflict_detector.detect(
+                    previous,
+                    evidence,
+                )
             )
 
             if conflict is not None:
-                new_conflicts.append(conflict)
+                new_conflicts.append(
+                    conflict
+                )
 
 
-        # --------------------------------------------------
-        # STEP 4: Store evidence
-        # --------------------------------------------------
+        # ------------------------------------------------
+        # STEP 4: STORE NEW EVIDENCE
+        # ------------------------------------------------
 
         self.evidence_store.add_evidence(
             evidence
         )
 
 
-        # --------------------------------------------------
-        # STEP 5: Update mastery
-        # --------------------------------------------------
+        # ------------------------------------------------
+        # STEP 5: UPDATE MASTERY
+        # ------------------------------------------------
 
         updated_concept = (
-            self.mastery_engine.update_from_evidence(
+            self.mastery_engine
+            .update_from_evidence(
                 student=student,
                 evidence=evidence,
             )
         )
 
 
-        # --------------------------------------------------
-        # STEP 5B: Update misconception knowledge
-        # --------------------------------------------------
-
-        for misconception in evidence.detected_misconceptions:
-
-            if (
-                misconception
-                not in updated_concept.misconceptions
-            ):
-
-                updated_concept.misconceptions.append(
-                    misconception
-                )
-
-
-        # --------------------------------------------------
-        # STEP 6: Get conflict key
-        # --------------------------------------------------
-
-        key = (
-            evidence.user_id,
-            evidence.concept_name.lower(),
-        )
-
-
-        # --------------------------------------------------
-        # STEP 7: Store newly detected conflicts
+        # ------------------------------------------------
+        # STEP 6: UPDATE MISCONCEPTION HYPOTHESES
+        # ------------------------------------------------
         #
-        # Diagnostic evidence is used for resolution,
-        # so conflicts created by the diagnostic itself
-        # are not stored as new active conflicts.
-        # --------------------------------------------------
+        # Every detected misconception is treated as
+        # SUPPORTING evidence for that hypothesis.
+        #
+        # First observation:
+        #     create hypothesis
+        #
+        # Repeated observation:
+        #     strengthen hypothesis
+        #
+        # Because the source agent is stored, later
+        # Learning, Research and Coding agents can all
+        # contribute to the same misconception state.
+        # ------------------------------------------------
 
-        if (
-            new_conflicts
-            and evidence.evidence_type != "diagnostic_quiz"
+        updated_hypotheses = []
+
+        for misconception in (
+            evidence.detected_misconceptions
         ):
 
-            self.active_conflicts.setdefault(
-                key,
-                []
-            ).extend(
-                new_conflicts
+            hypothesis = (
+                self.misconception_manager
+                .record_support(
+                    student=student,
+                    concept_name=evidence.concept_name,
+                    description=misconception,
+                    source_agent=evidence.source_agent,
+                )
+            )
+
+            updated_hypotheses.append(
+                hypothesis
             )
 
 
-        # --------------------------------------------------
-        # STEP 8: Try to resolve existing conflicts
-        # --------------------------------------------------
+        # ------------------------------------------------
+        # STEP 7: BUILD CONFLICT KEY
+        # ------------------------------------------------
+
+        key = (
+            evidence.user_id,
+            evidence.concept_name,
+        )
+
+
+        # ------------------------------------------------
+        # STEP 8: STORE NEW CONFLICTS
+        # ------------------------------------------------
+        #
+        # Diagnostic evidence is used for resolving
+        # existing conflicts.
+        #
+        # Therefore we do not add conflicts generated
+        # by diagnostic evidence as new active conflicts.
+        # ------------------------------------------------
+
+        if (
+            evidence.evidence_type
+            != "diagnostic_quiz"
+        ):
+
+            if new_conflicts:
+
+                if key not in self.active_conflicts:
+                    self.active_conflicts[
+                        key
+                    ] = []
+
+                self.active_conflicts[
+                    key
+                ].extend(
+                    new_conflicts
+                )
+
+
+        # ------------------------------------------------
+        # STEP 9: RESOLVE ACTIVE CONFLICTS
+        # ------------------------------------------------
 
         resolution_results = []
 
         if (
-            evidence.evidence_type == "diagnostic_quiz"
-            and self.has_conflict(
-                evidence.user_id,
-                evidence.concept_name,
-            )
+            evidence.evidence_type
+            == "diagnostic_quiz"
+            and key in self.active_conflicts
         ):
 
-            current_conflicts = self.get_conflicts(
-                evidence.user_id,
-                evidence.concept_name,
-            )
+            remaining_conflicts = []
 
-            unresolved_conflicts = []
-
-            for conflict in current_conflicts:
+            for conflict in (
+                self.active_conflicts[key]
+            ):
 
                 resolution = (
                     self.conflict_resolver.resolve(
-                        conflict,
-                        evidence,
+                        conflict=conflict,
+                        diagnostic_evidence=evidence,
                     )
                 )
 
@@ -188,22 +241,22 @@ class CognitiveEngine:
                     resolution
                 )
 
-                # If diagnostic evidence was not strong
-                # enough, keep the conflict active.
                 if not resolution.resolved:
-
-                    unresolved_conflicts.append(
+                    remaining_conflicts.append(
                         conflict
                     )
 
 
-            # Keep only unresolved conflicts
-            if unresolved_conflicts:
+            # If some conflicts could not be resolved,
+            # keep only those conflicts.
+            if remaining_conflicts:
 
-                self.active_conflicts[key] = (
-                    unresolved_conflicts
-                )
+                self.active_conflicts[
+                    key
+                ] = remaining_conflicts
 
+            # If every conflict was resolved,
+            # remove the key completely.
             else:
 
                 self.active_conflicts.pop(
@@ -212,9 +265,9 @@ class CognitiveEngine:
                 )
 
 
-        # --------------------------------------------------
-        # STEP 9: Determine whether anything was resolved
-        # --------------------------------------------------
+        # ------------------------------------------------
+        # STEP 10: CONFLICT RESOLUTION SUMMARY
+        # ------------------------------------------------
 
         conflict_resolved = any(
             result.resolved
@@ -222,26 +275,55 @@ class CognitiveEngine:
         )
 
 
-        # --------------------------------------------------
-        # STEP 10: Return complete result
-        # --------------------------------------------------
+        # ------------------------------------------------
+        # STEP 11: RETURN RESULT
+        # ------------------------------------------------
 
         return {
-            "concept": updated_concept,
+    # Updated cognitive state for this concept
+    "concept": updated_concept,
 
-            "conflicts": new_conflicts,
+    # --------------------------------------------------
+    # BACKWARD-COMPATIBILITY KEY
+    # --------------------------------------------------
+    # Older tests and components use:
+    #
+    # result["conflicts"]
+    #
+    # Keep this key so existing code does not break.
+    "conflicts": new_conflicts,
 
-            "has_active_conflict": self.has_conflict(
-                evidence.user_id,
-                evidence.concept_name,
-            ),
+    # --------------------------------------------------
+    # NEW CLEARER KEY
+    # --------------------------------------------------
+    # Newer components can use:
+    #
+    # result["new_conflicts"]
+    #
+    # Both keys currently refer to the same conflicts.
+    "new_conflicts": new_conflicts,
 
-            "conflict_resolved": conflict_resolved,
+    # Results produced when diagnostic evidence
+    # attempts to resolve existing conflicts.
+    "resolution_results": resolution_results,
 
-            "resolution_results": resolution_results,
+    # True if at least one conflict was resolved
+    # during this evidence-processing step.
+    "conflict_resolved": conflict_resolved,
 
-            "evidence": evidence,
-        }
+    # Whether unresolved conflict still exists
+    # after processing this evidence.
+    "has_active_conflict": self.has_conflict(
+        user_id=evidence.user_id,
+        concept_name=evidence.concept_name,
+    ),
+
+    # Misconception hypotheses created or updated
+    # by this particular evidence item.
+    "updated_misconception_hypotheses": (
+        updated_hypotheses
+    ),
+}
 
 
     # ==================================================
@@ -253,16 +335,19 @@ class CognitiveEngine:
         user_id: str,
         concept_name: str,
     ) -> bool:
+        """
+        Returns True when unresolved cross-agent
+        conflicts exist for this concept.
+        """
 
         key = (
             user_id,
-            concept_name.lower(),
+            concept_name,
         )
 
         return bool(
             self.active_conflicts.get(
-                key,
-                []
+                key
             )
         )
 
@@ -276,34 +361,105 @@ class CognitiveEngine:
         user_id: str,
         concept_name: str,
     ):
+        """
+        Return unresolved conflicts for a concept.
+        """
 
         key = (
             user_id,
-            concept_name.lower(),
+            concept_name,
         )
 
         return self.active_conflicts.get(
             key,
-            []
+            [],
         )
 
 
     # ==================================================
-    # RESOLVE CONFLICTS
+    # MANUALLY CLEAR CONFLICTS
     # ==================================================
 
     def resolve_conflicts(
         self,
         user_id: str,
         concept_name: str,
-    ):
+    ) -> None:
+        """
+        Manually remove all active conflicts for
+        a student's concept.
+
+        This is mainly a utility method.
+        """
 
         key = (
             user_id,
-            concept_name.lower(),
+            concept_name,
         )
 
         self.active_conflicts.pop(
             key,
             None,
+        )
+
+
+    # ==================================================
+    # RECORD MISCONCEPTION CONTRADICTION
+    # ==================================================
+
+    def record_misconception_contradiction(
+        self,
+        student: StudentCognitiveModel,
+        concept_name: str,
+        misconception: str,
+        source_agent: str = "learning",
+    ):
+        """
+        Record evidence AGAINST an existing
+        misconception hypothesis.
+
+        Example:
+
+        Student previously confused n-2 with n-1.
+
+        A targeted reassessment is generated.
+
+        If the student answers correctly, that result
+        provides contradicting evidence against the
+        misconception hypothesis.
+        """
+
+        return (
+            self.misconception_manager
+            .record_contradiction(
+                student=student,
+                concept_name=concept_name,
+                description=misconception,
+                source_agent=source_agent,
+            )
+        )
+
+
+    # ==================================================
+    # GET MISCONCEPTION HYPOTHESIS
+    # ==================================================
+
+    def get_misconception_hypothesis(
+        self,
+        student: StudentCognitiveModel,
+        concept_name: str,
+        misconception: str,
+    ):
+        """
+        Retrieve one structured misconception
+        hypothesis from the shared cognitive model.
+        """
+
+        return (
+            self.misconception_manager
+            .get_hypothesis(
+                student=student,
+                concept_name=concept_name,
+                description=misconception,
+            )
         )
