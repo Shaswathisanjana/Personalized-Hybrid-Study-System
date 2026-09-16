@@ -1,0 +1,9 @@
+[
+  {
+    "id": "1",
+    "title": "Sample Problem",
+    "description": "Write a function that returns the sum of two numbers.",
+    "difficulty": "easy",
+    "tags": ["math", "basics"]
+  }
+]
