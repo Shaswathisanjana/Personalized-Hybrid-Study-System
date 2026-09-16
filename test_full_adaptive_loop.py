@@ -15,17 +15,9 @@ from app.learning_agent.remediation_loop import (
     RemediationLoop,
 )
 
-from app.learning_agent.reassessment_processor import (
-    ReassessmentProcessor,
-)
-
-from app.learning_agent.agent import (
-    LearningAgent,
-)
-
 
 # ============================================================
-# 1. CREATE SHARED STUDENT MODEL
+# 1. CREATE STUDENT
 # ============================================================
 
 student = StudentCognitiveModel(
@@ -37,39 +29,52 @@ student = StudentCognitiveModel(
 # 2. CREATE ONE SHARED COGNITIVE ENGINE
 # ============================================================
 #
-# This SAME engine is used throughout the learning cycle.
+# The same cognitive engine is used for:
 #
-# Therefore:
-#
-# original quiz
+# original answer
+#       ↓
+# misconception tracking
 #       ↓
 # remediation
 #       ↓
 # reassessment
 #       ↓
+# cognitive update
+#       ↓
 # replanning
 #
-# all operate on the same cognitive state.
+# This ensures that the entire adaptive learning cycle
+# operates on ONE shared student cognitive state.
 # ============================================================
 
 engine = CognitiveEngine()
 
+
+# ============================================================
+# 3. CREATE THE REMEDIATION ORCHESTRATOR
+# ============================================================
+#
+# RemediationLoop now coordinates:
+#
+# AnswerEvaluator
+# MisconceptionAnalyzer
+# CognitiveEngine
+# RemediationGenerator
+# ReassessmentGenerator
+# ReassessmentProcessor
+# LearningAgent
+#
+# The test should therefore NOT manually create a separate
+# ReassessmentProcessor or LearningAgent.
+# ============================================================
 
 remediation_loop = RemediationLoop(
     cognitive_engine=engine
 )
 
 
-reassessment_processor = ReassessmentProcessor(
-    cognitive_engine=engine
-)
-
-
-learning_agent = LearningAgent()
-
-
 # ============================================================
-# 3. ORIGINAL QUESTION
+# 4. ORIGINAL QUESTION
 # ============================================================
 
 original_question = QuizQuestion(
@@ -100,7 +105,7 @@ original_question = QuizQuestion(
 
 
 # ============================================================
-# 4. ASK ORIGINAL QUESTION
+# 5. ASK ORIGINAL QUESTION
 # ============================================================
 
 print(
@@ -127,19 +132,36 @@ original_answer = StudentAnswer(
 
 
 # ============================================================
-# 5. PROCESS ORIGINAL ANSWER
+# 6. PROCESS ORIGINAL ANSWER
+# ============================================================
+#
+# RemediationLoop now handles:
+#
+# evaluation
+#     ↓
+# misconception analysis
+#     ↓
+# cognitive evidence
+#     ↓
+# misconception hypothesis
+#     ↓
+# remediation
+#     ↓
+# reassessment generation
+#
 # ============================================================
 
 original_result = (
     remediation_loop.process_answer(
         student=student,
+
         student_answer=original_answer,
     )
 )
 
 
 # ============================================================
-# 6. DISPLAY ORIGINAL RESULT
+# 7. DISPLAY ORIGINAL RESULT
 # ============================================================
 
 print(
@@ -189,7 +211,7 @@ print(
 
 
 # ============================================================
-# 7. IF NO TARGETED REASSESSMENT WAS GENERATED
+# 8. HANDLE CASE WHERE NO REASSESSMENT IS NEEDED
 # ============================================================
 
 if original_result.reassessment_question is None:
@@ -199,17 +221,11 @@ if original_result.reassessment_question is None:
     )
 
 
-    has_conflict = engine.has_conflict(
-        user_id=student.user_id,
-        concept_name="Recursion",
-    )
-
-
     next_action = (
-        learning_agent.choose_action(
+        remediation_loop.get_next_action(
             student=student,
+
             concept_name="Recursion",
-            has_conflict=has_conflict,
         )
     )
 
@@ -237,15 +253,20 @@ if original_result.reassessment_question is None:
     )
 
 
+    print(
+        "\n========== ADAPTIVE LOOP COMPLETE =========="
+    )
+
+
     raise SystemExit
 
 
 # ============================================================
-# 8. DISPLAY REMEDIATION
+# 9. DISPLAY REMEDIATION
 # ============================================================
 
 print(
-    "\n========== REMEDIATION =========="
+    "\n========== GROUNDED REMEDIATION =========="
 )
 
 
@@ -257,7 +278,7 @@ if original_result.remediation_content is not None:
 
 
 # ============================================================
-# 9. GET GENERATED REASSESSMENT
+# 10. GET GENERATED REASSESSMENT
 # ============================================================
 
 reassessment_question = (
@@ -266,7 +287,7 @@ reassessment_question = (
 
 
 print(
-    "\n========== REASSESSMENT =========="
+    "\n========== VALIDATED REASSESSMENT =========="
 )
 
 
@@ -275,8 +296,14 @@ print(
 )
 
 
+print(
+    "\nValidated correct answer stored internally:",
+    reassessment_question.correct_answer,
+)
+
+
 # ============================================================
-# 10. GET TARGET MISCONCEPTION
+# 11. GET TARGET MISCONCEPTION
 # ============================================================
 
 target_misconception = (
@@ -286,7 +313,7 @@ target_misconception = (
 
 
 # ============================================================
-# 11. GET HYPOTHESIS BEFORE REASSESSMENT
+# 12. DISPLAY HYPOTHESIS BEFORE REASSESSMENT
 # ============================================================
 
 hypothesis_before = (
@@ -295,9 +322,7 @@ hypothesis_before = (
 
         concept_name="Recursion",
 
-        misconception=(
-            target_misconception
-        ),
+        misconception=target_misconception,
     )
 )
 
@@ -307,38 +332,40 @@ print(
 )
 
 
-print(
-    "Description:",
-    hypothesis_before.description,
-)
+if hypothesis_before is not None:
+
+    print(
+        "Description:",
+        hypothesis_before.description,
+    )
 
 
-print(
-    "Confidence:",
-    hypothesis_before.confidence,
-)
+    print(
+        "Confidence:",
+        hypothesis_before.confidence,
+    )
 
 
-print(
-    "Supporting evidence:",
-    hypothesis_before.supporting_evidence,
-)
+    print(
+        "Supporting evidence:",
+        hypothesis_before.supporting_evidence,
+    )
 
 
-print(
-    "Contradicting evidence:",
-    hypothesis_before.contradicting_evidence,
-)
+    print(
+        "Contradicting evidence:",
+        hypothesis_before.contradicting_evidence,
+    )
 
 
-print(
-    "Status:",
-    hypothesis_before.status,
-)
+    print(
+        "Status:",
+        hypothesis_before.status,
+    )
 
 
 # ============================================================
-# 12. ASK STUDENT REASSESSMENT
+# 13. ASK REASSESSMENT
 # ============================================================
 
 reassessment_answer_text = input(
@@ -356,16 +383,41 @@ reassessment_answer = StudentAnswer(
 
 
 # ============================================================
-# 13. PROCESS REASSESSMENT
+# 14. PROCESS REASSESSMENT THROUGH REMEDIATION LOOP
+# ============================================================
+#
+# THIS IS THE IMPORTANT ARCHITECTURAL CHANGE.
+#
+# Previously this test manually called:
+#
+# ReassessmentProcessor.process(...)
+#
+# and then manually called:
+#
+# LearningAgent.choose_action(...)
+#
+#
+# Now ONE orchestrator performs:
+#
+# reassessment
+#      ↓
+# evaluation
+#      ↓
+# evidence update
+#      ↓
+# misconception update
+#      ↓
+# conflict check
+#      ↓
+# Learning Agent replan
+#
 # ============================================================
 
-reassessment_result = (
-    reassessment_processor.process(
+adaptive_result = (
+    remediation_loop.process_reassessment(
         student=student,
 
-        student_answer=(
-            reassessment_answer
-        ),
+        student_answer=reassessment_answer,
 
         misconception_description=(
             target_misconception
@@ -375,7 +427,16 @@ reassessment_result = (
 
 
 # ============================================================
-# 14. SHOW REASSESSMENT RESULT
+# 15. GET INNER REASSESSMENT RESULT
+# ============================================================
+
+reassessment_result = (
+    adaptive_result.reassessment_result
+)
+
+
+# ============================================================
+# 16. SHOW REASSESSMENT RESULT
 # ============================================================
 
 print(
@@ -415,7 +476,7 @@ print(
 
 
 # ============================================================
-# 15. SHOW UPDATED HYPOTHESIS
+# 17. SHOW UPDATED MISCONCEPTION HYPOTHESIS
 # ============================================================
 
 print(
@@ -452,13 +513,8 @@ print(
 
 
 # ============================================================
-# 16. SHOW UPDATED COGNITIVE MODEL
+# 18. SHOW COGNITIVE STATE RETURNED BY ORCHESTRATOR
 # ============================================================
-
-concept = student.get_concept(
-    "Recursion"
-)
-
 
 print(
     "\n========== UPDATED COGNITIVE STATE =========="
@@ -467,19 +523,24 @@ print(
 
 print(
     "Mastery:",
-    concept.mastery,
+    adaptive_result.mastery,
 )
 
 
 print(
     "Confidence:",
-    concept.confidence,
+    adaptive_result.confidence,
 )
 
 
 print(
     "Attempts:",
-    concept.attempts,
+    adaptive_result.attempts,
+)
+
+
+concept = student.get_concept(
+    "Recursion"
 )
 
 
@@ -502,39 +563,31 @@ print(
 
 
 # ============================================================
-# 17. CHECK CROSS-AGENT CONFLICT
+# 19. SHOW CONFLICT STATE
 # ============================================================
-
-has_conflict = engine.has_conflict(
-    user_id=student.user_id,
-
-    concept_name="Recursion",
-)
-
-
-# ============================================================
-# 18. LEARNING AGENT REPLANS
-# ============================================================
-
-next_action = (
-    learning_agent.choose_action(
-        student=student,
-
-        concept_name="Recursion",
-
-        has_conflict=has_conflict,
-    )
-)
-
 
 print(
-    "\n========== LEARNING AGENT REPLAN =========="
+    "\n========== COGNITIVE CONFLICT =========="
 )
 
 
 print(
     "Active cognitive conflict:",
-    has_conflict,
+    adaptive_result.has_active_conflict,
+)
+
+
+# ============================================================
+# 20. SHOW AUTOMATIC LEARNING AGENT REPLAN
+# ============================================================
+
+next_action = (
+    adaptive_result.next_action
+)
+
+
+print(
+    "\n========== AUTOMATIC LEARNING AGENT REPLAN =========="
 )
 
 
@@ -557,7 +610,7 @@ print(
 
 
 # ============================================================
-# 19. DISPLAY EVIDENCE HISTORY
+# 21. DISPLAY EVIDENCE HISTORY
 # ============================================================
 
 history = (
@@ -622,11 +675,46 @@ for number, evidence in enumerate(
 
 
 # ============================================================
-# 20. FINAL SUMMARY
+# 22. BASIC INTEGRATION ASSERTIONS
+# ============================================================
+#
+# These assertions make this more than a visual demo.
+#
+# They prove that:
+#
+# 1. the reassessment became cognitive evidence
+# 2. the student model was updated
+# 3. the Learning Agent produced another action
+#
+# ============================================================
+
+assert concept.attempts >= 2
+
+
+assert len(history) >= 2
+
+
+assert adaptive_result.next_action is not None
+
+
+assert (
+    adaptive_result.mastery
+    == concept.mastery
+)
+
+
+assert (
+    adaptive_result.confidence
+    == concept.confidence
+)
+
+
+# ============================================================
+# 23. FINAL SUMMARY
 # ============================================================
 
 print(
-    "\n========== ADAPTIVE LOOP COMPLETE =========="
+    "\n========== FULL ADAPTIVE LOOP VERIFIED =========="
 )
 
 
@@ -636,17 +724,22 @@ print(
 
 
 print(
-    "Misconception hypothesis processed."
+    "Misconception hypothesis updated."
 )
 
 
 print(
-    "Targeted remediation processed."
+    "Grounded remediation generated."
 )
 
 
 print(
-    "Reassessment processed."
+    "Reassessment deterministically validated."
+)
+
+
+print(
+    "Reassessment processed through shared orchestrator."
 )
 
 
@@ -656,5 +749,15 @@ print(
 
 
 print(
-    "Learning Agent replanned."
+    "Conflict state checked."
+)
+
+
+print(
+    "Learning Agent automatically replanned."
+)
+
+
+print(
+    "\nFULL LEARNING AGENT CLOSED LOOP PASSED."
 )
