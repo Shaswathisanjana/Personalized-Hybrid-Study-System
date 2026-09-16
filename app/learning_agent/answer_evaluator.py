@@ -6,11 +6,14 @@ from app.learning_agent.quiz_models import (
 
 class AnswerEvaluator:
     """
-    Evaluates student answers.
+    Evaluates objectively gradable student answers.
 
-    For questions with a definite correct answer,
-    evaluation is deterministic rather than relying
-    on an LLM.
+    Important:
+    A wrong answer alone does not prove which
+    misconception caused the error.
+
+    Misconceptions will be identified separately
+    by the MisconceptionAnalyzer.
     """
 
     def evaluate(
@@ -30,12 +33,8 @@ class AnswerEvaluator:
             .lower()
         )
 
-        # -------------------------------
-        # CORRECT ANSWER
-        # -------------------------------
-
+        # Correct answer
         if received == expected:
-
             return EvaluationResult(
                 is_correct=True,
                 performance=1.0,
@@ -43,16 +42,9 @@ class AnswerEvaluator:
                 detected_misconceptions=[],
             )
 
-        # -------------------------------
-        # INCORRECT ANSWER
-        # -------------------------------
-
-        misconceptions = (
-            student_answer
-            .question
-            .misconception_targets
-        )
-
+        # Wrong answer
+        # Do NOT automatically assign all possible
+        # misconception targets.
         return EvaluationResult(
             is_correct=False,
             performance=0.0,
@@ -61,6 +53,5 @@ class AnswerEvaluator:
                 f"The expected answer is "
                 f"{student_answer.question.correct_answer}."
             ),
-            detected_misconceptions=misconceptions,
+            detected_misconceptions=[],
         )
-    

@@ -13,9 +13,10 @@ class CognitiveEngine:
     Responsibilities:
     1. Store cross-agent evidence
     2. Update concept mastery
-    3. Detect cognitive conflicts
-    4. Maintain active conflicts
-    5. Resolve conflicts using diagnostic evidence
+    3. Update detected misconceptions
+    4. Detect cognitive conflicts
+    5. Maintain active conflicts
+    6. Resolve conflicts using diagnostic evidence
     """
 
     def __init__(self):
@@ -107,6 +108,22 @@ class CognitiveEngine:
 
 
         # --------------------------------------------------
+        # STEP 5B: Update misconception knowledge
+        # --------------------------------------------------
+
+        for misconception in evidence.detected_misconceptions:
+
+            if (
+                misconception
+                not in updated_concept.misconceptions
+            ):
+
+                updated_concept.misconceptions.append(
+                    misconception
+                )
+
+
+        # --------------------------------------------------
         # STEP 6: Get conflict key
         # --------------------------------------------------
 
@@ -119,9 +136,9 @@ class CognitiveEngine:
         # --------------------------------------------------
         # STEP 7: Store newly detected conflicts
         #
-        # Diagnostic evidence is used for RESOLUTION,
-        # so we do not store conflicts created by the
-        # diagnostic itself as new active conflicts.
+        # Diagnostic evidence is used for resolution,
+        # so conflicts created by the diagnostic itself
+        # are not stored as new active conflicts.
         # --------------------------------------------------
 
         if (
@@ -171,16 +188,16 @@ class CognitiveEngine:
                     resolution
                 )
 
-                # If the diagnostic was not strong enough
-                # to resolve this conflict, keep it active.
+                # If diagnostic evidence was not strong
+                # enough, keep the conflict active.
                 if not resolution.resolved:
+
                     unresolved_conflicts.append(
                         conflict
                     )
 
 
-            # Replace the old conflict list with only
-            # unresolved conflicts.
+            # Keep only unresolved conflicts
             if unresolved_conflicts:
 
                 self.active_conflicts[key] = (
@@ -191,7 +208,7 @@ class CognitiveEngine:
 
                 self.active_conflicts.pop(
                     key,
-                    None
+                    None,
                 )
 
 
@@ -243,7 +260,10 @@ class CognitiveEngine:
         )
 
         return bool(
-            self.active_conflicts.get(key)
+            self.active_conflicts.get(
+                key,
+                []
+            )
         )
 
 
@@ -269,7 +289,7 @@ class CognitiveEngine:
 
 
     # ==================================================
-    # MANUAL CONFLICT CLEARING
+    # RESOLVE CONFLICTS
     # ==================================================
 
     def resolve_conflicts(
@@ -277,12 +297,6 @@ class CognitiveEngine:
         user_id: str,
         concept_name: str,
     ):
-        """
-        Utility method for explicitly clearing conflicts.
-
-        Normal automatic conflict resolution should happen
-        through diagnostic evidence and ConflictResolver.
-        """
 
         key = (
             user_id,
@@ -291,5 +305,5 @@ class CognitiveEngine:
 
         self.active_conflicts.pop(
             key,
-            None
+            None,
         )
