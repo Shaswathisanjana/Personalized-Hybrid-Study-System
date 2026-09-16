@@ -121,7 +121,7 @@ diagnostic_evidence = LearningEvidence(
     concept_name="Recursion",
     source_agent="learning",
     evidence_type="diagnostic_quiz",
-    performance=0.55,
+    performance=0.35,
     difficulty=0.70,
     reliability=0.80
 )
@@ -144,6 +144,19 @@ print(
     "Conflict resolved:",
     diagnostic_result["conflict_resolved"]
 )
+if diagnostic_result["resolution_results"]:
+
+    resolution = diagnostic_result["resolution_results"][0]
+
+    print(
+        "Supported agent:",
+        resolution.supported_agent
+    )
+
+    print(
+        "Resolution reason:",
+        resolution.reason
+    )
 
 print(
     "Active conflict:",
