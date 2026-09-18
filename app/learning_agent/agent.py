@@ -19,9 +19,16 @@ class LearningAgent:
     """
     Personalized Learning Agent.
 
-    The agent observes the student's cognitive state
-    and autonomously decides what learning action
-    should be performed next.
+    The agent observes the student's shared cognitive
+    state and autonomously decides what pedagogical
+    action should be performed next.
+
+    IMPORTANT:
+    The agent does not generate educational content.
+    It decides the pedagogical action.
+
+    Content generation is handled separately by the
+    configured ContentProvider.
     """
 
     def choose_action(
@@ -31,14 +38,23 @@ class LearningAgent:
         has_conflict: bool = False,
     ) -> LearningAction:
 
-        # Get current knowledge state.
+        # --------------------------------------------------
+        # OBSERVE CURRENT COGNITIVE STATE
+        # --------------------------------------------------
+
         concept = student.get_concept(concept_name)
 
         mastery = concept.mastery
         confidence = concept.confidence
+        attempts = concept.attempts
 
         # --------------------------------------------------
-        # RULE 1: Cognitive conflict exists
+        # RULE 1: CROSS-AGENT COGNITIVE CONFLICT
+        # --------------------------------------------------
+        #
+        # Conflict has the highest priority because the
+        # system should not confidently continue adapting
+        # from contradictory evidence.
         # --------------------------------------------------
 
         if has_conflict:
@@ -48,13 +64,44 @@ class LearningAgent:
                 concept_name=concept_name,
                 difficulty="medium",
                 reason=(
-                    "Conflicting evidence exists across agents. "
-                    "A diagnostic assessment is required."
+                    "Conflicting cognitive evidence exists "
+                    "across agents. A diagnostic assessment "
+                    "is required before normal progression."
                 ),
             )
 
         # --------------------------------------------------
-        # RULE 2: Low mastery
+        # RULE 2: NO PERFORMANCE EVIDENCE YET
+        # --------------------------------------------------
+        #
+        # A newly created concept may have a neutral prior
+        # mastery value, but that does NOT mean the student
+        # has demonstrated moderate understanding.
+        #
+        # attempts == 0 means CACM has not yet received
+        # performance evidence for this concept.
+        #
+        # Therefore, begin with teaching rather than
+        # assuming the student is ready for practice.
+        # --------------------------------------------------
+
+        if attempts == 0:
+
+            return LearningAction(
+                action_type="teach_concept",
+                concept_name=concept_name,
+                difficulty="easy",
+                reason=(
+                    "No performance evidence is available "
+                    "for this concept yet. The current mastery "
+                    "value is only an initial estimate, so the "
+                    "student should first receive foundational "
+                    "instruction."
+                ),
+            )
+
+        # --------------------------------------------------
+        # RULE 3: LOW MASTERY
         # --------------------------------------------------
 
         if mastery < 0.40:
@@ -64,13 +111,15 @@ class LearningAgent:
                 concept_name=concept_name,
                 difficulty="easy",
                 reason=(
-                    "Mastery is low, so the concept should "
-                    "be explained before further assessment."
+                    "Observed performance indicates low "
+                    "mastery, so the concept should be "
+                    "explained or remediated before further "
+                    "assessment."
                 ),
             )
 
         # --------------------------------------------------
-        # RULE 3: Moderate mastery
+        # RULE 4: MODERATE MASTERY
         # --------------------------------------------------
 
         if mastery < 0.70:
@@ -80,13 +129,18 @@ class LearningAgent:
                 concept_name=concept_name,
                 difficulty="medium",
                 reason=(
-                    "Mastery is moderate. Practice is needed "
-                    "to strengthen understanding."
+                    "The student has demonstrated partial "
+                    "understanding. Additional practice is "
+                    "needed to strengthen mastery."
                 ),
             )
 
         # --------------------------------------------------
-        # RULE 4: High mastery but low confidence
+        # RULE 5: HIGH MASTERY BUT LOW CONFIDENCE
+        # --------------------------------------------------
+        #
+        # The current estimate is high, but CACM does not
+        # yet have enough confidence in that estimate.
         # --------------------------------------------------
 
         if confidence < 0.50:
@@ -97,12 +151,13 @@ class LearningAgent:
                 difficulty="hard",
                 reason=(
                     "Estimated mastery is high, but confidence "
-                    "in that estimate is still low."
+                    "in the estimate is still low. Independent "
+                    "verification is required."
                 ),
             )
 
         # --------------------------------------------------
-        # RULE 5: High mastery and sufficient confidence
+        # RULE 6: HIGH MASTERY + SUFFICIENT CONFIDENCE
         # --------------------------------------------------
 
         return LearningAction(
@@ -110,7 +165,8 @@ class LearningAgent:
             concept_name=concept_name,
             difficulty="hard",
             reason=(
-                "Mastery and confidence are sufficiently high "
-                "to progress to more advanced material."
+                "The student has demonstrated high mastery "
+                "with sufficient confidence, so progression "
+                "to advanced material is appropriate."
             ),
         )

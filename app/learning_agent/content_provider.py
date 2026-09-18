@@ -28,11 +28,14 @@ class ContentProvider(ABC):
 
 class LocalContentProvider(ContentProvider):
     """
-    Temporary local provider used before connecting
-    an external LLM.
+    Local fallback content provider.
 
-    It converts the personalized request into simple
-    usable educational content.
+    This provider allows the Learning Agent and CACM
+    pipeline to continue functioning without depending
+    on an external LLM.
+
+    It supports every pedagogical content type currently
+    used by the Learning Agent.
     """
 
     def create_content(
@@ -42,7 +45,12 @@ class LocalContentProvider(ContentProvider):
 
         concept = request.concept_name
 
+        # ==================================================
+        # TEACH CONCEPT
+        # ==================================================
+
         if request.content_type == "teach_concept":
+
             return (
                 f"{concept} is being introduced at a "
                 f"{request.difficulty} level. "
@@ -50,32 +58,76 @@ class LocalContentProvider(ContentProvider):
                 f"then study a simple worked example."
             )
 
+        # ==================================================
+        # PRACTICE
+        # ==================================================
+
         if request.content_type == "practice_quiz":
+
             return (
-                f"Practice Question ({request.difficulty}):\n"
+                f"Practice Question "
+                f"({request.difficulty}):\n"
                 f"Explain how {concept} works and give "
                 f"one example where it can be applied."
             )
 
+        # ==================================================
+        # DIAGNOSTIC ASSESSMENT
+        # ==================================================
+
         if request.content_type == "diagnostic_quiz":
+
             return (
                 f"Diagnostic Question:\n"
                 f"Without using a memorized definition, "
                 f"explain {concept} using your own example."
             )
 
+        # ==================================================
+        # VERIFICATION ASSESSMENT
+        # ==================================================
+
         if request.content_type == "verification_quiz":
+
             return (
-                f"Verification Question ({request.difficulty}):\n"
+                f"Verification Question "
+                f"({request.difficulty}):\n"
                 f"Solve a challenging problem involving "
                 f"{concept} and explain your reasoning."
             )
 
-        if request.content_type == "advance_topic":
+        # ==================================================
+        # TARGETED REMEDIATION
+        # ==================================================
+
+        if request.content_type == "targeted_remediation":
+
             return (
-                f"You are ready to explore a more advanced "
-                f"application related to {concept}."
+                f"Let's revisit {concept} at a "
+                f"{request.difficulty} level.\n\n"
+                f"Your recent answer suggests that one "
+                f"part of this concept may need more "
+                f"clarification.\n\n"
+                f"Review the key idea carefully using a "
+                f"simpler explanation and worked example "
+                f"before attempting another question."
             )
+
+        # ==================================================
+        # ADVANCE TOPIC
+        # ==================================================
+
+        if request.content_type == "advance_topic":
+
+            return (
+                f"You are ready to explore a more "
+                f"advanced application related to "
+                f"{concept}."
+            )
+
+        # ==================================================
+        # UNKNOWN CONTENT TYPE
+        # ==================================================
 
         raise ValueError(
             f"Unsupported content type: "
