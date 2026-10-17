@@ -1425,6 +1425,7 @@ with st.sidebar:
         "Navigation",
         [
             "Student View",
+            "Advanced Research Agent",
             "CACM Professor Demo",
             "System Architecture",
         ],
@@ -1758,6 +1759,18 @@ if page == "Student View":
 # =========================================================
 # CACM PROFESSOR DEMO
 # =========================================================
+
+elif page == "Advanced Research Agent":
+
+    from app.research_agent.streamlit_page import (
+        display_advanced_research_page,
+    )
+
+    display_advanced_research_page(
+        student=student,
+        orchestrator=orchestrator,
+    )
+
 
 elif page == "CACM Professor Demo":
 

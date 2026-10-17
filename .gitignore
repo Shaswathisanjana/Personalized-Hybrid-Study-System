@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# CACM Research Agent - generated and temporary files
+data/research_reports/
+*.bak
