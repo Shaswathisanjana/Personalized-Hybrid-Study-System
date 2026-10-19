@@ -8,6 +8,10 @@ from app.research_agent.abstract_quality_validator import (
     AbstractQualityResult,
 )
 from app.research_agent.paper_search import AcademicPaperSearch
+from app.research_agent.autonomous_search import (
+    AutonomousResearchSearcher,
+    SearchAttempt,
+)
 from app.research_agent.paper_summarizer import (
     PaperSummary,
     StructuredPaperSummarizer,
@@ -43,6 +47,7 @@ class ResearchWorkflowResult:
     proposal: ResearchProposal | None = None
     warnings: list[str] = field(default_factory=list)
     source_scope: str = "abstract_only"
+    search_attempts: list[SearchAttempt] = field(default_factory=list)
 
 
 class IntegratedResearchWorkflow:
@@ -74,6 +79,7 @@ class IntegratedResearchWorkflow:
         limit: int = 5,
         papers: list[ResearchPaper] | None = None,
         include_thematic_review: bool = True,
+        search_queries: list[str] | None = None,
     ) -> ResearchWorkflowResult:
 
         if not isinstance(topic, str) or not topic.strip():
@@ -89,6 +95,23 @@ class IntegratedResearchWorkflow:
         # not as permission to start a network search.
         if papers is not None:
             result.papers = list(papers)
+
+        elif search_queries is not None:
+            searcher = AutonomousResearchSearcher(
+                search_service=self.search_service,
+                max_attempts=3,
+            )
+
+            refined = searcher.search(
+                queries=search_queries,
+                limit=limit,
+                target_usable_papers=min(2, limit),
+            )
+
+            result.papers = list(refined.papers)
+            result.search_attempts = list(refined.attempts)
+            result.warnings.extend(refined.warnings)
+
         else:
             search = (
                 self.search_service

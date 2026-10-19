@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from uuid import uuid4
 
 from app.cognitive.cognitive_engine import CognitiveEngine
 from app.cognitive.evidence import LearningEvidence
@@ -28,6 +29,7 @@ class DiagnosticSession:
     concept_name: str
     question: QuizQuestion
     difficulty: str
+    session_id: str = field(default_factory=lambda: uuid4().hex)
 
 
 @dataclass
@@ -77,6 +79,10 @@ class DiagnosticIntervention:
     ):
 
         self.cognitive_engine = cognitive_engine
+
+        # Completed diagnostic sessions, keyed by session ID.
+        # Prevents repeated submissions from updating CACM twice.
+        self.completed_sessions = {}
 
         self.quiz_generator = (
             quiz_generator
@@ -165,6 +171,22 @@ class DiagnosticIntervention:
                 "different student."
             )
 
+        if not isinstance(answer, str) or not answer.strip():
+            raise ValueError("Diagnostic answer cannot be empty.")
+
+        # A completed session must never submit new evidence again.
+        if session.session_id in self.completed_sessions:
+            return self.completed_sessions[session.session_id]
+
+        # A new diagnostic requires a genuine unresolved conflict.
+        if not self.cognitive_engine.has_conflict(
+            user_id=student.user_id,
+            concept_name=session.concept_name,
+        ):
+            raise ValueError(
+                "No unresolved CACM conflict remains for this diagnostic."
+            )
+
         student_answer = StudentAnswer(
             user_id=student.user_id,
             question=session.question,
@@ -209,7 +231,7 @@ class DiagnosticIntervention:
             )
         )
 
-        return DiagnosticOutcome(
+        outcome = DiagnosticOutcome(
             evaluation=evaluation,
             evidence=diagnostic_evidence,
             conflict_resolved=processing_result[
@@ -222,3 +244,6 @@ class DiagnosticIntervention:
                 "resolution_results"
             ],
         )
+
+        self.completed_sessions[session.session_id] = outcome
+        return outcome

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from dataclasses import dataclass
 
@@ -8,6 +8,11 @@ from app.cognitive.cognitive_engine import CognitiveEngine
 from app.research_agent.agent import (
     ResearchAgent,
     ResearchAction,
+)
+
+from app.research_agent.intelligent_planner import (
+    IntelligentResearchPlanner,
+    ResearchPlan,
 )
 
 from app.research_agent.research_workflow import (
@@ -31,15 +36,16 @@ from app.research_agent.cacm_runtime import (
 class PersonalizedResearchResult:
     action: ResearchAction
     research: ResearchWorkflowResult
+    plan: ResearchPlan | None = None
 
 
 class PersonalizedResearchCoordinator:
     """
-    Connects the Research Agent decision layer, academic
-    research workflow and shared CACM cognitive model.
+    Connects intelligent research planning, academic research
+    analysis and the shared CACM cognitive model.
 
-    Research content generation does NOT update mastery.
-    Only assessed comprehension is sent into CACM.
+    Generating research content does not update mastery.
+    Only assessed comprehension is submitted to CACM.
     """
 
     def __init__(
@@ -48,6 +54,7 @@ class PersonalizedResearchCoordinator:
         cognitive_engine: CognitiveEngine,
         workflow: IntegratedResearchWorkflow | None = None,
         research_agent: ResearchAgent | None = None,
+        planner: IntelligentResearchPlanner | None = None,
     ):
 
         self.student = student
@@ -56,6 +63,14 @@ class PersonalizedResearchCoordinator:
             research_agent
             if research_agent is not None
             else ResearchAgent()
+        )
+
+        self.planner = (
+            planner
+            if planner is not None
+            else IntelligentResearchPlanner(
+                research_agent=self.research_agent
+            )
         )
 
         self.workflow = (
@@ -79,26 +94,51 @@ class PersonalizedResearchCoordinator:
         include_thematic_review: bool = True,
     ) -> PersonalizedResearchResult:
         """
-        Select a personalized research action and execute
-        the academic paper-analysis workflow.
+        Create a cognitive-state-aware plan, then execute
+        the existing academic research workflow.
         """
 
-        action = self.research_agent.choose_action(
-            student=self.student,
-            concept_name=concept_name,
-            has_active_conflict=has_active_conflict,
+        # Read the REAL unresolved conflict state from shared CACM.
+        # A caller-supplied flag must not manufacture a conflict.
+        detected_conflict = self.cacm_runtime.cognitive_engine.has_conflict(
+            user_id=self.student.user_id,
+            concept_name=concept_name.strip(),
         )
 
-        research = self.workflow.run(
+        if has_active_conflict and not detected_conflict:
+            raise ValueError(
+                "Diagnostic research requires a genuine unresolved "
+                "conflict in the shared CACM cognitive engine."
+            )
+
+        plan = self.planner.create_plan(
+            student=self.student,
             topic=topic,
-            limit=limit,
-            papers=papers,
-            include_thematic_review=include_thematic_review,
+            concept_name=concept_name,
+            has_active_conflict=detected_conflict,
         )
+
+        workflow_kwargs = {
+            "topic": plan.topic,
+            "limit": limit,
+            "papers": papers,
+            "include_thematic_review": include_thematic_review,
+        }
+
+        # Manually supplied papers must never trigger online retrieval.
+        # Only the real integrated workflow receives planned search queries.
+        if (
+            papers is None
+            and isinstance(self.workflow, IntegratedResearchWorkflow)
+        ):
+            workflow_kwargs["search_queries"] = plan.search_queries
+
+        research = self.workflow.run(**workflow_kwargs)
 
         return PersonalizedResearchResult(
-            action=action,
+            action=plan.action,
             research=research,
+            plan=plan,
         )
 
     def submit_comprehension_evaluation(
@@ -108,8 +148,7 @@ class PersonalizedResearchCoordinator:
         evaluation: ResearchComprehensionEvaluation,
     ) -> ResearchCACMOutcome:
         """
-        Send assessed student comprehension into CACM.
-        This is the only cognitive-update operation here.
+        Submit evaluated student comprehension to CACM.
         """
 
         return self.cacm_runtime.process_comprehension(

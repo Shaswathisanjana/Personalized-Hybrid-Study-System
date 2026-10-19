@@ -1,4 +1,6 @@
-﻿from __future__ import annotations
+from __future__ import annotations
+
+from app.research_agent.streamlit_diagnostic import display_research_diagnostic
 
 import streamlit as st
 
@@ -7,6 +9,12 @@ from app.research_agent.personalized_coordinator import (
 )
 from app.research_agent.streamlit_results import (
     display_advanced_research_results,
+)
+from app.research_agent.streamlit_assessment import (
+    display_research_assessment,
+)
+from app.research_agent.streamlit_decisions import (
+    display_research_decisions,
 )
 
 
@@ -116,6 +124,19 @@ def display_advanced_research_page(student, orchestrator):
                     outcome.action
                 )
 
+                st.session_state.advanced_research_plan = (
+                    outcome.plan
+                )
+
+                # A new research result needs a fresh assessment.
+                st.session_state.advanced_research_concept = (
+                    concept_name.strip()
+                )
+                st.session_state.research_assessment_service = None
+                st.session_state.research_assessment_question = None
+                st.session_state.research_assessment_completed = False
+                st.session_state.research_assessment_feedback = None
+
     result = st.session_state.advanced_research_result
 
     if result is not None:
@@ -138,7 +159,49 @@ def display_advanced_research_page(student, orchestrator):
 
             st.caption(action.reason)
 
+        plan = st.session_state.get(
+            "advanced_research_plan"
+        )
+
+        if plan is not None:
+            display_research_decisions(
+                plan=plan,
+                research=result,
+            )
+
         display_advanced_research_results(result)
+
+        assessment_concept = st.session_state.get(
+            'advanced_research_concept'
+        )
+
+        if action is not None and assessment_concept:
+            # Display the existing CACM diagnostic workflow
+            # only when a real conflict exists or when
+            # completed diagnostic feedback must be shown.
+            if orchestrator.cognitive_engine.has_conflict(
+                user_id=student.user_id,
+                concept_name=assessment_concept,
+            ) or (
+                st.session_state.get("research_diagnostic_outcome")
+                is not None
+                and st.session_state.get(
+                    "research_diagnostic_concept"
+                ) == assessment_concept
+            ):
+                display_research_diagnostic(
+                    concept_name=assessment_concept,
+                    student=student,
+                    orchestrator=orchestrator,
+                )
+
+            display_research_assessment(
+                result=result,
+                action=action,
+                concept_name=assessment_concept,
+                student=student,
+                orchestrator=orchestrator,
+            )
 
         st.caption(
             "Viewing or downloading research does not update "

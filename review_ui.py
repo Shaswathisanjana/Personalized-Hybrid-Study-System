@@ -129,6 +129,22 @@ def reset_everything():
 
     reset_practice_state()
 
+    # Clear temporary state belonging to the advanced agent pages.
+    # This prevents old assessments, exercises, controllers, and
+    # diagnostic sessions from referencing the previous student
+    # or Cognitive Engine after a reset.
+    advanced_keys = [
+        key
+        for key in list(st.session_state.keys())
+        if key.startswith("advanced_coding_")
+        or key.startswith("advanced_research_")
+        or key.startswith("research_assessment_")
+        or key.startswith("research_diagnostic_")
+    ]
+
+    for key in advanced_keys:
+        del st.session_state[key]
+
     st.session_state.demo_resolved = False
 
 
@@ -1426,6 +1442,7 @@ with st.sidebar:
         [
             "Student View",
             "Advanced Research Agent",
+            "Advanced Coding Agent",
             "CACM Professor Demo",
             "System Architecture",
         ],
@@ -1767,6 +1784,18 @@ elif page == "Advanced Research Agent":
     )
 
     display_advanced_research_page(
+        student=student,
+        orchestrator=orchestrator,
+    )
+
+
+elif page == "Advanced Coding Agent":
+
+    from app.coding_agent.streamlit_page import (
+        display_advanced_coding_page,
+    )
+
+    display_advanced_coding_page(
         student=student,
         orchestrator=orchestrator,
     )
