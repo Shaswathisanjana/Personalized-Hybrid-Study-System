@@ -1,0 +1,10 @@
+{
+  "name": "CACM Python Practice",
+  "short_name": "Python Practice",
+  "start_url": "/coding/",
+  "scope": "/coding/",
+  "display": "standalone",
+  "background_color": "#f5f7fb",
+  "theme_color": "#244de8",
+  "icons": [{ "src": "/coding/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

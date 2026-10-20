@@ -1,0 +1,2278 @@
+require('dotenv').config();
+
+const express = require('express');
+const mongoose = require('mongoose');
+const axios = require('axios');
+const crypto = require('node:crypto');
+const { tasksForCourse, buildLearningPath } = require('./coding/roadmap.cjs');
+
+const { createGemini } = require('./ai/gemini.cjs');
+const {
+  StateGraph,
+  END,
+  START,
+  Annotation
+} = require('@langchain/langgraph');
+
+const {
+  SystemMessage,
+  HumanMessage
+} = require('@langchain/core/messages');
+
+const app = express();
+
+app.use(express.json({ limit: '2mb' }));
+
+
+// ======================================================
+// 1. MONGODB MODELS
+// ======================================================
+
+// ------------------------------------------------------
+// Student Profile
+// ------------------------------------------------------
+
+const StudentSchema = new mongoose.Schema({
+  userId: {
+    type: String,
+    unique: true,
+    required: true
+  },
+
+  name: {
+    type: String,
+    default: ''
+  },
+
+  email: {
+    type: String,
+    default: undefined,
+    sparse: true
+  },
+
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
+
+// ------------------------------------------------------
+// Video Progress (per student, per video)
+// ------------------------------------------------------
+
+const UserProgressSchema = new mongoose.Schema({
+  userId: {
+    type: String,
+    required: true,
+    index: true
+  },
+
+  videoId: {
+    type: String,
+    required: true
+  },
+
+  courseId: {
+    type: String,
+    default: ''
+  },
+
+  courseTopic: {
+    type: String,
+    default: ''
+  },
+
+  lessonTitle: {
+    type: String,
+    default: ''
+  },
+
+  lessonIndex: {
+    type: Number,
+    default: 0
+  },
+
+  title: {
+    type: String,
+    default: ''
+  },
+
+  currentTime: {
+    type: Number,
+    default: 0
+  },
+
+  duration: {
+    type: Number,
+    default: 0
+  },
+
+  percentWatched: {
+    type: Number,
+    default: 0
+  },
+
+  completed: {
+    type: Boolean,
+    default: false
+  },
+
+  lastWatchedAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
+// One student has exactly one progress record per video.
+// This is what makes "resume" and "per-student tracking" work correctly.
+UserProgressSchema.index(
+  { userId: 1, courseId: 1, videoId: 1 },
+  { unique: true }
+);
+
+
+// ------------------------------------------------------
+// Learning History (per student)
+// ------------------------------------------------------
+
+const LearningHistorySchema = new mongoose.Schema({
+  userId: {
+    type: String,
+    required: true,
+    index: true
+  },
+
+  courseId: {
+    type: String,
+    default: () => crypto.randomUUID(),
+    index: true
+  },
+
+  learningMode: {
+    type: String,
+    enum: ['course', 'topic'],
+    default: 'topic'
+  },
+
+  courseStatus: {
+    type: String,
+    enum: ['active', 'completed'],
+    default: 'active'
+  },
+
+  topic: {
+    type: String,
+    default: ''
+  },
+
+  curriculum: [
+    {
+      title: String,
+      description: String,
+      searchQuery: String,
+      order: Number,
+      completed: {
+        type: Boolean,
+        default: false
+      }
+    }
+  ],
+
+  currentLesson: {
+    type: Number,
+    default: 0
+  },
+
+  completedVideos: {
+    type: [String],
+    default: []
+  },
+
+  quizScores: [
+    {
+      topic: String,
+      videoId: String,
+      score: Number,
+      total: Number,
+      questions: mongoose.Schema.Types.Mixed,
+      answers: [String],
+      date: {
+        type: Date,
+        default: Date.now
+      }
+    }
+  ],
+
+  codingRevisionTasks: { type: [mongoose.Schema.Types.Mixed], default: [] },
+
+  aiNotes: {
+    type: String,
+    default: ''
+  }
+});
+
+LearningHistorySchema.index({ userId: 1, courseId: 1 }, { unique: true });
+
+// ------------------------------------------------------
+// Shared Learner Profile (used by Learning, Coding,
+// and Research Agents)
+// ------------------------------------------------------
+
+const ConceptStateSchema = new mongoose.Schema(
+  {
+    mastery: {
+      type: Number,
+      default: 0.5,
+      min: 0,
+      max: 1
+    },
+
+    confidence: {
+      type: String,
+      enum: ['low', 'medium', 'high'],
+      default: 'medium'
+    },
+
+    attempts: {
+      type: Number,
+      default: 0
+    },
+
+    correctAttempts: {
+      type: Number,
+      default: 0
+    },
+
+    mistakes: {
+      type: [String],
+      default: []
+    }
+  },
+  { _id: false }
+);
+
+const LearnerProfileSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true
+    },
+
+    codingState: { type: mongoose.Schema.Types.Mixed, default: {} },
+
+    concepts: {
+      type: Map,
+      of: ConceptStateSchema,
+      default: {}
+    },
+
+    weakAreas: {
+      type: [String],
+      default: []
+    },
+
+    codingMistakes: [
+      {
+        topic: String,
+        mistakeTag: String,
+        count: {
+          type: Number,
+          default: 1
+        },
+        lastSeenAt: {
+          type: Date,
+          default: Date.now
+        }
+      }
+    ],
+
+    evidenceHistory: [
+      {
+        source: String,
+        topic: String,
+        mistakeTag: String,
+        correct: Boolean,
+        createdAt: {
+          type: Date,
+          default: Date.now
+        }
+      }
+    ]
+  },
+  { timestamps: true }
+);
+// ------------------------------------------------------
+// Models
+// ------------------------------------------------------
+
+const Student = mongoose.model('Student', StudentSchema);
+const UserProgress = mongoose.model('UserProgress', UserProgressSchema);
+const LearningHistory = mongoose.model('LearningHistory', LearningHistorySchema);
+const LearnerProfile = mongoose.model(
+  'LearnerProfile',
+  LearnerProfileSchema
+);
+
+// ======================================================
+// 2. CONNECT TO MONGODB (fixed: server now waits for a
+//    real connection before accepting traffic, and logs
+//    connection state changes so you can see it working)
+// ======================================================
+
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/ai_tutor';
+
+mongoose.connection.on('connected', () => {
+  console.log('[db] connected');
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('[db] connection error:', err.message);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.warn('[db] disconnected');
+});
+
+async function connectDB() {
+  try {
+    await mongoose.connect(MONGO_URI);
+    try {
+      await Student.collection.dropIndex('email_1');
+      console.log('[db] removed obsolete students.email unique index');
+    } catch (indexError) {
+      if (![26, 27].includes(indexError.code) && indexError.codeName !== 'IndexNotFound') {
+        throw indexError;
+      }
+    }
+    for (const [collection, indexName] of [
+      [LearningHistory, 'userId_1'],
+      [UserProgress, 'userId_1_videoId_1']
+    ]) {
+      try {
+        await collection.collection.dropIndex(indexName);
+        console.log(`[db] removed obsolete index ${indexName}`);
+      } catch (indexError) {
+        if (![26, 27].includes(indexError.code) && indexError.codeName !== 'IndexNotFound') {
+          throw indexError;
+        }
+      }
+    }
+    const legacyCourses = await LearningHistory.find({
+      $or: [{ courseId: { $exists: false } }, { courseId: null }, { courseId: '' }]
+    });
+    for (const legacyCourse of legacyCourses) {
+      const courseId = crypto.randomUUID();
+      await LearningHistory.updateOne({ _id: legacyCourse._id }, { $set: { courseId } });
+      await UserProgress.updateMany(
+        { userId: legacyCourse.userId, courseTopic: legacyCourse.topic, $or: [{ courseId: { $exists: false } }, { courseId: '' }] },
+        { $set: { courseId } }
+      );
+      console.log(`[db] migrated legacy course ${legacyCourse.topic} -> ${courseId}`);
+    }
+    await LearningHistory.createIndexes();
+    await UserProgress.createIndexes();
+    await LearnerProfile.createIndexes();
+    await coding.CodingAttempt.createIndexes();
+  } catch (err) {
+    console.error('[db] initial connection failed:', err.message);
+    console.error('[db] make sure MongoDB is running (check MongoDB Compass / `Get-Service -Name MongoDB`)');
+    process.exit(1);
+  }
+}
+
+
+// ======================================================
+// 3. GEMINI + LANGGRAPH AI AGENT
+// ======================================================
+
+const llm = createGemini();
+
+const coding = require('./coding/index.cjs').installCoding({
+  app, mongoose, LearnerProfile, LearningHistory, getLlm: () => llm
+});
+
+
+// ------------------------------------------------------
+// LangGraph State
+// ------------------------------------------------------
+
+const AgentState = Annotation.Root({
+  userId: Annotation(),
+  userIntent: Annotation(),
+  topic: Annotation(),
+  historyContext: Annotation(),
+  recommendations: Annotation(),
+  quiz: Annotation()
+});
+
+
+// ======================================================
+// NODE 1 - FETCH STUDENT HISTORY
+// ======================================================
+
+async function fetchHistoryNode(state) {
+  try {
+    const activeUserId = state.userId || 'user_default';
+
+    const history = await LearningHistory.findOne({ userId: activeUserId });
+    const profile = await LearnerProfile.findOne({ userId: activeUserId }).lean();
+    const codingContext = profile?.codingState || {};
+
+    const progress = await UserProgress.find({ userId: activeUserId })
+      .sort({ lastWatchedAt: -1 });
+
+    const historyContext = `
+Student ID:
+${activeUserId}
+
+Current Topic:
+${history?.topic || 'No topic recorded'}
+
+Completed Videos:
+${JSON.stringify(history?.completedVideos || [])}
+
+Recent Video Progress:
+${JSON.stringify(
+  progress.map((p) => ({
+    videoId: p.videoId,
+    title: p.title,
+    completed: p.completed,
+    currentTime: p.currentTime,
+    duration: p.duration
+  }))
+)}
+
+Previous Quiz Scores:
+${JSON.stringify(history?.quizScores || [])}
+
+Coding evidence and pending revision tasks:
+${JSON.stringify({ concepts: codingContext.concepts || {}, revisionTasks: (codingContext.revisionTasks || []).filter(t => t.status === 'pending') })}
+Use only coding topics relevant to the requested course. Include relevant pending
+revision work early in the roadmap. These are practice estimates, not proven mastery.
+`;
+
+    return { historyContext };
+  } catch (error) {
+    console.error('History Node Error:', error.message);
+    return { historyContext: 'No previous learning history available.' };
+  }
+}
+
+
+// ======================================================
+// NODE 2 - AI DECISION ENGINE
+// ======================================================
+
+async function decisionNode(state) {
+  // ====================================================
+  // QUIZ GENERATION
+  // ====================================================
+  if (state.userIntent === 'GENERATE_QUIZ') {
+    const prompt = `
+You are an educational AI assistant.
+
+Generate a 3-question multiple-choice quiz about the following topic:
+
+"${state.topic}"
+
+Return ONLY valid JSON.
+
+Required format:
+
+{
+  "questions": [
+    {
+      "question": "Question text",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "answer": "Option A",
+      "explanation": "Briefly explain why the answer is correct."
+    }
+  ]
+}
+
+Rules:
+- Exactly 3 questions.
+- Exactly 4 options per question.
+- "answer" must exactly match one option.
+- Include a clear explanation for every answer.
+- No markdown.
+`;
+
+    try {
+      const response = await llm.invoke([
+        new SystemMessage('You are an educational AI assistant.'),
+        new HumanMessage(prompt)
+      ]);
+
+      let content = response.content;
+      if (Array.isArray(content)) {
+        content = content.map((item) => item.text || '').join('');
+      }
+
+      content = String(content)
+        .replace(/```json/gi, '')
+        .replace(/```/g, '')
+        .trim();
+
+      const quizData = JSON.parse(content);
+      return { quiz: quizData };
+    } catch (error) {
+      console.error('Quiz generation error:', error.message);
+      return { quiz: { error: learningAIError(error) } };
+    }
+  }
+
+  // ====================================================
+  // COURSE ROADMAP GENERATION
+  // ====================================================
+  const prompt = `
+You are an expert curriculum designer.
+
+Here is the learner's history:
+
+${state.historyContext}
+
+The learner wants to learn:
+
+"${state.topic}"
+
+Create a complete, ordered course roadmap for the learner's requested subject.
+Break it into the essential subtopics needed to learn the subject from foundation
+to practical application. Do not include unrelated subjects.
+
+Return ONLY a valid JSON object in this exact format:
+{
+  "courseTitle": "Subject course title",
+  "lessons": [
+    {
+      "title": "One focused subtopic",
+      "description": "What the learner should understand in this lesson",
+      "searchQuery": "Precise YouTube search query for this subtopic"
+    }
+  ]
+}
+
+Rules:
+- Include 6 to 12 lessons, ordered from prerequisites to advanced practice.
+- Every lesson must directly belong to the requested subject.
+- Do not add motivational, career, or unrelated videos.
+- Each searchQuery must describe only its lesson.
+- Do not return markdown or explanations.
+
+Do not return markdown.
+Do not return explanations.
+`;
+
+  try {
+    const response = await llm.invoke([
+      new SystemMessage('You are an adaptive curriculum planner.'),
+      new HumanMessage(prompt)
+    ]);
+
+    let content = response.content;
+    if (Array.isArray(content)) {
+      content = content.map((item) => item.text || '').join('');
+    }
+
+    content = String(content)
+      .replace(/```json/gi, '')
+      .replace(/```/g, '')
+      .trim();
+
+    const roadmap = JSON.parse(content);
+    return { recommendations: roadmap };
+  } catch (error) {
+    console.error('Recommendation generation error:', error.message);
+    return { recommendations: { error: learningAIError(error) } };
+  }
+}
+
+function learningAIError(error) {
+  const status = Number(error?.status || error?.statusCode || error?.response?.status);
+  if (status === 429) return 'Gemini quota or rate limit reached. Check your API quota and try again later. Coding practice is still available.';
+  if (status === 401 || status === 403) return 'Gemini rejected the request. Check GEMINI_API_KEY and its API permissions in .env, then restart the server.';
+  if (status === 404) return 'The configured Gemini model is unavailable. Check GEMINI_MODEL and your model access, then restart the server.';
+  if (error instanceof SyntaxError) return 'Gemini returned an invalid response. Please try again.';
+  return 'Gemini could not generate a response. Check your internet connection, API key, model access, and quota. Coding practice is still available.';
+}
+
+
+// ======================================================
+// BUILD LANGGRAPH
+// ======================================================
+
+const workflow = new StateGraph(AgentState)
+  .addNode('fetchHistory', fetchHistoryNode)
+  .addNode('decisionEngine', decisionNode)
+  .addEdge(START, 'fetchHistory')
+  .addEdge('fetchHistory', 'decisionEngine')
+  .addEdge('decisionEngine', END);
+
+const agentApp = workflow.compile();
+
+
+// ======================================================
+// 4. YOUTUBE SEARCH API
+// ======================================================
+
+app.get('/api/youtube/search', async (req, res) => {
+  try {
+    const query = req.query.q || 'JavaScript tutorials';
+    const lessonTopic = String(req.query.lessonTopic || '').trim();
+
+    if (!process.env.YOUTUBE_API_KEY) {
+      return res.status(503).json({ error: 'Video search needs YOUTUBE_API_KEY in .env. Add your key and restart the server. Coding practice works without it.' });
+    }
+
+    const url = 'https://www.googleapis.com/youtube/v3/search';
+
+    const response = await axios.get(url, {
+      timeout: 15000,
+      params: {
+        part: 'snippet',
+        maxResults: 5,
+        q: query,
+        type: 'video',
+        videoDuration: 'medium',
+        videoEmbeddable: 'true',
+        safeSearch: 'strict',
+        key: process.env.YOUTUBE_API_KEY
+      }
+    });
+
+    const items = response.data.items || [];
+
+    const allVideos = items
+      .filter((item) => item.id && item.id.videoId)
+      .map((item) => ({
+        videoId: item.id.videoId,
+        title: item.snippet.title,
+        thumbnail:
+          item.snippet.thumbnails?.medium?.url ||
+          item.snippet.thumbnails?.default?.url ||
+          '',
+        channelTitle: item.snippet.channelTitle
+      }));
+    const videos = allVideos.filter((video) => !lessonTopic || isVideoRelevant(video, lessonTopic));
+
+    res.json(videos.length ? videos : allVideos);
+  } catch (error) {
+    console.error('YouTube Search Error:', error.response?.data || error.message);
+    res.status(500).json({
+      error: error.response?.data?.error?.message || error.message
+    });
+  }
+});
+
+function isVideoRelevant(video, lessonTopic) {
+  const stopWords = new Set(['the', 'and', 'for', 'with', 'from', 'into', 'about', 'learn', 'tutorial', 'course']);
+  const topicWords = lessonTopic.toLowerCase().match(/[a-z0-9]+/g) || [];
+  const titleWords = video.title.toLowerCase().match(/[a-z0-9]+/g) || [];
+  const meaningfulTopicWords = topicWords.filter((word) => word.length > 2 && !stopWords.has(word));
+  if (!meaningfulTopicWords.length) return false;
+  const matches = meaningfulTopicWords.filter((word) => titleWords.includes(word)).length;
+  return matches / meaningfulTopicWords.length >= 0.5;
+}
+
+function isQuizRelatedToCourse(quizTopic, courseTopic) {
+  const stopWords = new Set(['the', 'and', 'for', 'with', 'from', 'course', 'lesson']);
+  const courseWords = String(courseTopic || '').toLowerCase().match(/[a-z0-9]+/g) || [];
+  const quizWords = String(quizTopic || '').toLowerCase().match(/[a-z0-9]+/g) || [];
+  const meaningfulCourseWords = courseWords.filter((word) => word.length > 2 && !stopWords.has(word));
+  const meaningfulQuizWords = quizWords.filter((word) => word.length > 2 && !stopWords.has(word));
+  if (!meaningfulCourseWords.length || !meaningfulQuizWords.length) return true;
+  return meaningfulQuizWords.some((word) => meaningfulCourseWords.includes(word));
+}
+
+
+// ======================================================
+// 5. SYNC VIDEO PROGRESS  (uses `returnDocument: 'after'`
+//    so the response always reflects the just-saved data,
+//    and every write is logged so you can see it land in
+//    Mongo in real time)
+// ======================================================
+
+app.post('/api/progress/sync', async (req, res) => {
+  try {
+    const { userId, videoId, title, duration, courseId, courseTopic, lessonTitle, lessonIndex, learningMode } = req.body;
+    const currentTime = req.body.currentTime;
+
+    if (!videoId) {
+      return res.status(400).json({ error: 'videoId is required' });
+    }
+
+    if (learningMode !== 'course') {
+      return res.json({ success: true, tracking: false, reason: 'One-topic learning is not tracked.' });
+    }
+
+    if (!courseId || !courseTopic || !lessonTitle) {
+      return res.status(400).json({
+        error: 'Course, topic, and lesson title are required for progress tracking'
+      });
+    }
+
+    const activeUserId = userId || 'user_default';
+
+    const course = await LearningHistory.findOne({
+      userId: activeUserId,
+      courseId,
+      topic: courseTopic,
+      learningMode: 'course',
+      courseStatus: 'active',
+      'curriculum.title': lessonTitle
+    });
+
+    if (!course) {
+      return res.status(400).json({ error: 'Progress must belong to an active course lesson' });
+    }
+
+    const current = Number(currentTime) || 0;
+    const total = Number(duration) || 0;
+    const percentWatched = total > 0 ? Math.min(100, (current / total) * 100) : 0;
+    const completed = total > 0 && current / total >= 0.9;
+
+    // make sure a Student record exists for this userId (auto-create on first sync)
+    await Student.findOneAndUpdate(
+      { userId: activeUserId },
+      { $setOnInsert: { userId: activeUserId } },
+      { upsert: true }
+    );
+
+    const progress = await UserProgress.findOneAndUpdate(
+      { userId: activeUserId, courseId, videoId },
+      {
+        $set: {
+          title: title || '',
+          courseId,
+          courseTopic: courseTopic || '',
+          lessonTitle: lessonTitle || '',
+          lessonIndex: Number.isInteger(lessonIndex) ? lessonIndex : 0,
+          currentTime: current,
+          duration: total,
+          percentWatched,
+          completed,
+          lastWatchedAt: new Date()
+        }
+      },
+      {
+        upsert: true,
+        returnDocument: 'after',
+        setDefaultsOnInsert: true
+      }
+    );
+
+    console.log(
+      `[progress] ${activeUserId} -> ${videoId} @ ${Math.floor(current)}s / ${Math.floor(total)}s (${Math.round(percentWatched)}%)${completed ? ' [COMPLETED]' : ''}`
+    );
+
+    // Save completed video to learning history
+    if (completed) {
+      await LearningHistory.findOneAndUpdate(
+        { userId: activeUserId, courseId },
+        {
+          $setOnInsert: { userId: activeUserId },
+          $addToSet: { completedVideos: videoId }
+        },
+        { upsert: true, returnDocument: 'after' }
+      );
+
+      if (courseTopic && lessonTitle) {
+        await LearningHistory.findOneAndUpdate(
+          { userId: activeUserId, courseId, topic: courseTopic },
+          {
+            $set: { 'curriculum.$[lesson].completed': true },
+            $max: { currentLesson: Number.isInteger(lessonIndex) ? lessonIndex + 1 : 0 }
+          },
+          {
+            arrayFilters: [{ 'lesson.title': lessonTitle }],
+            returnDocument: 'after'
+          }
+        );
+
+        const updatedCourse = await LearningHistory.findOne({ userId: activeUserId, courseId });
+        if (updatedCourse?.curriculum?.length && updatedCourse.curriculum.every((lesson) => lesson.completed)) {
+          await LearningHistory.updateOne(
+            { userId: activeUserId, courseId },
+            { $set: { courseStatus: 'completed' } }
+          );
+        }
+      }
+    }
+
+    res.json({ success: true, progress });
+  } catch (error) {
+    console.error('Progress Sync Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// ======================================================
+// 6. RESUME VIDEO
+// ======================================================
+
+app.get('/api/progress/resume/:videoId', async (req, res) => {
+  try {
+    const activeUserId = req.query.userId || 'user_default';
+    const courseId = req.query.courseId || '';
+
+    const progress = await UserProgress.findOne({
+      userId: activeUserId,
+      courseId,
+      videoId: req.params.videoId
+    });
+
+    res.json({
+      currentTime: progress ? progress.currentTime : 0,
+      duration: progress ? progress.duration : 0,
+      completed: progress ? progress.completed : false
+    });
+  } catch (error) {
+    console.error('Resume Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// ======================================================
+// 6b. FULL PROGRESS LIST FOR A STUDENT (new)
+//     GET /api/progress/:userId  -> every video this
+//     student has ever watched, most recent first
+// ======================================================
+
+app.get('/api/progress/:userId', async (req, res) => {
+  try {
+    const progress = await UserProgress.find({ userId: req.params.userId }).sort({
+      lastWatchedAt: -1
+    });
+    res.json(progress);
+  } catch (error) {
+    console.error('Progress List Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// ======================================================
+// 7. AI RECOMMENDATION ENDPOINT
+// ======================================================
+
+app.post('/api/agent/recommend', async (req, res) => {
+  try {
+    const { topic, userId } = req.body;
+
+    if (typeof topic !== 'string' || !topic.trim()) {
+      return res.status(400).json({ error: 'Topic is required' });
+    }
+
+    if (!llm) {
+      return res.status(503).json({ error: 'Course planning needs GEMINI_API_KEY in .env. Add your key and restart the server. You can still open coding practice.' });
+    }
+
+    const activeUserId = userId || 'user_default';
+
+    // auto-create Student record so every learner is tracked from their first request
+    await Student.findOneAndUpdate(
+      { userId: activeUserId },
+      { $setOnInsert: { userId: activeUserId } },
+      { upsert: true }
+    );
+
+    const result = await agentApp.invoke({
+      userId: activeUserId,
+      userIntent: 'RECOMMEND',
+      topic: topic.trim()
+    });
+
+    const roadmap = result.recommendations || {};
+    if (roadmap.error) return res.status(502).json({ error: roadmap.error });
+    const lessons = Array.isArray(roadmap.lessons)
+      ? roadmap.lessons
+          .filter((lesson) => lesson && lesson.title && lesson.searchQuery)
+          .map((lesson, index) => ({
+            title: String(lesson.title),
+            description: String(lesson.description || ''),
+            order: index,
+            completed: false,
+            searchQuery: String(lesson.searchQuery)
+          }))
+      : [];
+
+    if (!lessons.length) {
+      return res.status(502).json({ error: 'The agent did not return a valid course roadmap.' });
+    }
+
+    const course = await LearningHistory.create({
+      userId: activeUserId,
+      courseId: crypto.randomUUID(),
+      topic: topic.trim(),
+      learningMode: 'course',
+      courseStatus: 'active',
+      curriculum: lessons,
+      currentLesson: 0
+    });
+
+    res.json({
+      courseTitle: roadmap.courseTitle || topic.trim(),
+      learningMode: 'course',
+      courseId: course.courseId,
+      lessons
+    });
+  } catch (error) {
+    console.error('Recommendation API Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// ======================================================
+// 8. GENERATE QUIZ
+// ======================================================
+
+app.post('/api/agent/quiz', async (req, res) => {
+  try {
+    const { topic, userId } = req.body;
+
+    if (!topic) {
+      return res.status(400).json({ error: 'Topic is required' });
+    }
+
+    if (!llm) {
+      return res.status(503).json({ error: 'AI quizzes need GEMINI_API_KEY in .env. Add your key and restart the server.' });
+    }
+
+    const result = await agentApp.invoke({
+      userId: userId || 'user_default',
+      userIntent: 'GENERATE_QUIZ',
+      topic
+    });
+
+    if (result.quiz?.error) return res.status(502).json({ error: result.quiz.error });
+    res.json(result.quiz);
+  } catch (error) {
+    console.error('Quiz API Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// ======================================================
+// 9. SUBMIT QUIZ
+// ======================================================
+
+app.post('/api/quiz/submit', async (req, res) => {
+  try {
+    const { userId, topic, courseId, videoId, answers, questions } = req.body;
+    const activeUserId = userId || 'user_default';
+
+    if (!Array.isArray(answers) || !Array.isArray(questions)) {
+      return res.status(400).json({ error: 'Invalid quiz data' });
+    }
+
+    const courseProgress = await UserProgress.findOne({
+      userId: activeUserId,
+      courseId,
+      videoId,
+      courseTopic: { $ne: '' },
+      lessonTitle: { $ne: '' }
+    });
+    if (!courseProgress) {
+      return res.status(400).json({ error: 'Quiz rewards are only available for tracked course lessons.' });
+    }
+
+    let score = 0;
+    questions.forEach((question, index) => {
+      const userAnswer = answers[index];
+      if (userAnswer && userAnswer === question.answer) {
+        score++;
+      }
+    });
+
+    await LearningHistory.findOneAndUpdate(
+          { userId: activeUserId, courseId },
+      {
+        $setOnInsert: { userId: activeUserId },
+        $push: {
+          quizScores: {
+            topic: topic || 'Unknown',
+            videoId: videoId || '',
+            score,
+            total: questions.length,
+            questions,
+            answers,
+            date: new Date()
+          }
+        }
+      },
+      { upsert: true, returnDocument: 'after' }
+    );
+
+    res.json({ success: true, score, total: questions.length });
+  } catch (error) {
+    console.error('Quiz Submission Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// ======================================================
+// 10. STUDENT DASHBOARD (per-student progress tracker)
+// ======================================================
+
+app.get('/api/student/:userId/dashboard', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const watchedVideos = await UserProgress.find({ userId }).sort({ lastWatchedAt: -1 });
+    const completedCount = watchedVideos.filter((video) => video.completed).length;
+    const totalTimeSpentSeconds = watchedVideos.reduce(
+      (total, video) => total + (video.currentTime || 0),
+      0
+    );
+
+    const courses = await LearningHistory.find({ userId }).sort({ updatedAt: -1 });
+    const codingProfile = await LearnerProfile.findOne({ userId }).lean();
+    // Different courses can have the same title. Keep their IDs and evidence separate.
+    const uniqueCourses = courses;
+    const selectedCourseId = req.query.courseId || uniqueCourses.find((course) => course.courseStatus !== 'completed')?.courseId || uniqueCourses[0]?.courseId;
+    const learningHistory = uniqueCourses.find((course) => course.courseId === selectedCourseId) || uniqueCourses[0];
+    const revisionTasks = codingProfile?.codingState?.revisionTasks || [];
+    const codingRevisionTasks = tasksForCourse(revisionTasks, learningHistory).filter(task => task.status === 'pending');
+    const { learningPath, nextStep } = buildLearningPath(learningHistory, revisionTasks);
+    const independentRevisionTasks = learningHistory ? revisionTasks.filter(task =>
+      task.status === 'pending' && !task.courseIds?.length &&
+      !uniqueCourses.some(course => tasksForCourse([task], course).length)) : [];
+    const courseSummaries = uniqueCourses.map((course) => {
+      const completedLessons = course.curriculum.filter((lesson) => lesson.completed).length;
+      const courseVideoIds = new Set(
+        watchedVideos
+          .filter((video) => video.courseId === course.courseId)
+          .map((video) => video.videoId)
+      );
+      const courseQuizScores = course.quizScores.filter(
+        (quiz) => courseVideoIds.has(quiz.videoId) && isQuizRelatedToCourse(quiz.topic, course.topic)
+      );
+      return {
+        courseId: course.courseId,
+        topic: course.topic,
+        status: course.courseStatus,
+        progress: course.curriculum.length
+          ? Math.round((completedLessons / course.curriculum.length) * 100)
+          : 0,
+        completedLessons,
+        totalLessons: course.curriculum.length,
+        curriculum: course.curriculum,
+        pendingCodingReviews: tasksForCourse(revisionTasks, course).filter(task => task.status === 'pending').length,
+        quizScores: courseQuizScores,
+        updatedAt: course.updatedAt
+      };
+    });
+    const selectedCourseVideoIds = new Set(
+      watchedVideos
+        .filter((video) => video.courseId === learningHistory?.courseId)
+        .map((video) => video.videoId)
+    );
+    const quizScores = (learningHistory?.quizScores || []).filter(
+      (quiz) => selectedCourseVideoIds.has(quiz.videoId) && isQuizRelatedToCourse(quiz.topic, learningHistory?.topic)
+    );
+    const curriculum = learningHistory?.curriculum || [];
+    const completedLessons = curriculum.filter((lesson) => lesson.completed).length;
+    const courseProgress = curriculum.length
+      ? Math.round((completedLessons / curriculum.length) * 100)
+      : 0;
+
+    const averageProgress = watchedVideos.length
+      ? Math.round(
+          watchedVideos.reduce(
+            (total, video) => total + (video.completed ? 100 : video.percentWatched || 0),
+            0
+          ) /
+            watchedVideos.length
+        )
+      : 0;
+
+    res.json({
+      userId,
+      courses: courseSummaries,
+      selectedCourseId: learningHistory?.courseId || '',
+      totalVideosAttempted: watchedVideos.length,
+      completedVideos: completedCount,
+      totalWatchTimeMinutes: Math.floor(totalTimeSpentSeconds / 60),
+      averageProgress,
+      lastActiveAt: watchedVideos[0]?.lastWatchedAt || null,
+      currentTopic: learningHistory?.topic || '',
+      learningMode: learningHistory?.learningMode || 'topic',
+      courseStatus: learningHistory?.courseStatus || 'topic',
+      courseProgress,
+      currentLesson: learningHistory?.currentLesson || 0,
+      curriculum,
+      codingRevisionTasks,
+      independentRevisionTasks,
+      learningPath,
+      nextStep,
+      codingStateUpdatedAt: codingProfile?.codingState?.updatedAt || null,
+      quizScores,
+      history: watchedVideos
+    });
+  } catch (error) {
+    console.error('Dashboard Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+// ======================================================
+// 11. ADMIN ANALYTICS (progress across ALL students)
+// ======================================================
+
+app.get('/api/admin/analytics', async (req, res) => {
+  try {
+    const analytics = await UserProgress.aggregate([
+      {
+        $group: {
+          _id: '$userId',
+          totalVideosWatched: { $sum: 1 },
+          completedLessons: { $sum: { $cond: ['$completed', 1, 0] } },
+          totalWatchTime: { $sum: '$currentTime' },
+          lastActive: { $max: '$lastWatchedAt' }
+        }
+      },
+      { $sort: { lastActive: -1 } }
+    ]);
+
+    res.json(analytics);
+  } catch (error) {
+    console.error('Analytics Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// ======================================================
+// 12. HEALTH CHECK (new: quick way to verify DB status)
+// ======================================================
+
+app.get('/api/health', (req, res) => {
+  const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+  res.json({
+    ok: true,
+    dbState: states[mongoose.connection.readyState] || 'unknown'
+  });
+});
+
+
+// ======================================================
+// 13. FRONTEND
+// ======================================================
+
+app.get('/', (req, res) => {
+  res.send(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CACM · Learn with momentum</title>
+<style>
+:root { --ink: #172033; --muted: #667085; --line: #e6e8ee; --paper: #fff; --accent: #e85d3f; --accent-dark: #b83f2a; --soft: #fff4ef; }
+* { box-sizing: border-box; }
+body { font-family: Georgia, 'Times New Roman', serif; background: radial-gradient(circle at top right, #fff4df 0, transparent 34%), #f6f3ee; color: var(--ink); margin: 0; padding: 28px; }
+.shell { max-width: 1380px; margin: 0 auto; }
+.topbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid #dedbd4; }
+.view { display: none; }
+.view.active { display: block; }
+h1 { font-size: clamp(2rem, 4vw, 4rem); line-height: .95; margin: 0 0 8px; letter-spacing: 0; }
+.eyebrow { color: var(--accent); font: 700 12px Arial, sans-serif; letter-spacing: 1.5px; text-transform: uppercase; }
+.subtitle { color: var(--muted); margin: 0; font: 15px Arial, sans-serif; }
+.topbar-tools { display: grid; gap: 12px; justify-items: end; }
+.user-select { display: flex; align-items: center; gap: 8px; font: 13px Arial, sans-serif; }
+.user-select input { width: 160px; }
+.main-nav { display: flex; flex-wrap: wrap; gap: 6px; }
+.main-nav button { padding: 10px 14px; }
+.main-nav button[aria-current="page"] { background: var(--ink); border-color: var(--ink); color: white; }
+input, button { border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; font: inherit; }
+input { background: var(--paper); color: var(--ink); }
+input[type="text"] { width: min(70%, 560px); }
+button { background: var(--accent); border-color: var(--accent); color: white; cursor: pointer; font: 700 13px Arial, sans-serif; }
+button:hover { background: var(--accent-dark); }
+button:disabled { opacity: .65; cursor: wait; }
+button:focus-visible, a:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid #386cc5; outline-offset: 4px; }
+.button-secondary { background: transparent; color: var(--accent-dark); }
+.button-secondary:hover { color: white; }
+.start-page { max-width: 1080px; margin: 40px auto 0; }
+.start-page h2 { max-width: 940px; font-size: clamp(2rem, 4vw, 3.1rem); line-height: 1.08; margin: 14px 0; }
+.start-page .intro { max-width: 560px; color: var(--muted); font: 16px/1.6 Arial, sans-serif; margin-bottom: 30px; }
+.choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.choice { display: flex; flex-direction: column; align-items: flex-start; text-align: left; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-top: 4px solid var(--accent); border-radius: 10px; padding: 24px; box-shadow: 0 12px 30px rgba(23, 32, 51, .04); transition: transform .15s; }
+.choice:hover { background: #fffaf7; color: var(--ink); transform: translateY(-2px); }
+.choice h3 { margin: 0 0 8px; font: 400 27px Georgia, serif; }
+.choice p { color: var(--muted); font: 14px/1.5 Arial, sans-serif; margin: 0 0 18px; }
+.choice .choice-action { margin-top: auto; color: var(--accent-dark); font: 700 13px Arial, sans-serif; }
+.choice-kicker { font: 700 11px Arial, sans-serif; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+.choice-coding { border-top-color: #365f8a; }
+.choice-coding .choice-action { color: #365f8a; }
+.choice-history { border-top-color: #4d715f; }
+.choice-history .choice-action { color: #3c624e; }
+.hub-note { color: var(--muted); font: 13px/1.6 Arial, sans-serif; margin: 20px 0; }
+.services-panel { margin-top: 22px; border-top: 1px solid #dedbd4; padding: 18px 0; font: 13px/1.6 Arial, sans-serif; color: var(--muted); }
+.services-panel summary { cursor: pointer; color: var(--ink); font-weight: 700; }
+.services-panel ul { padding-left: 20px; }
+.setup-note { margin-top: 14px; color: var(--accent-dark); font: 13px/1.6 Arial, sans-serif; }
+.player-placeholder { display: grid; place-content: center; height: 100%; min-height: 180px; padding: 28px; color: #dce3ed; text-align: center; font: 14px/1.6 Arial, sans-serif; }
+.player-placeholder strong { display: block; color: white; font: 400 24px Georgia, serif; margin-bottom: 8px; }
+.workspace-label { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+.workspace-label h2 { margin: 0; }
+.workspace-label span { color: var(--muted); font: 12px Arial, sans-serif; }
+.workspace-label span::before { content: '●'; color: var(--accent); margin-right: 6px; }
+.container { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr); gap: 22px; }
+.main, .sidebar { min-width: 0; }
+.panel { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 18px; box-shadow: 0 8px 30px rgba(23, 32, 51, .06); }
+.search-panel { margin-bottom: 16px; }
+.search-panel label { display: block; color: var(--muted); font: 12px 700 Arial, sans-serif; letter-spacing: .8px; text-transform: uppercase; margin-bottom: 8px; }
+.search-panel .search-controls { display: flex; gap: 8px; align-items: center; }
+.search-panel .search-controls input { flex: 1; min-width: 0; width: auto; }
+#player { width: 100%; aspect-ratio: 16 / 9; border-radius: 10px; background: #111827; overflow: hidden; }
+#player iframe { width: 100%; height: 100%; border: 0; }
+#player:fullscreen { width: 100vw; height: 100vh; border-radius: 0; }
+.player-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+.player-actions button { padding: 8px 12px; }
+#videoTitle { font-size: 22px; margin: 16px 0; }
+.status { margin: 0 0 16px; padding: 10px 12px; border-left: 3px solid var(--accent); color: var(--muted); background: var(--soft); font: 13px Arial, sans-serif; }
+.sidebar { display: flex; flex-direction: column; gap: 16px; }
+.sidebar .panel { padding: 16px; }
+h2, h3 { margin-top: 0; }
+h3 { font-size: 18px; }
+.video-card, .recommendation { background: #fafafa; border: 1px solid var(--line); padding: 12px; margin: 8px 0; border-radius: 6px; cursor: pointer; font: 14px Arial, sans-serif; }
+.video-card:hover, .recommendation:hover { border-color: var(--accent); background: var(--soft); }
+.recommendation { cursor: pointer; }
+.quiz-box { background: var(--soft); border: 1px solid #f4c7b9; padding: 18px; margin-top: 15px; border-radius: 8px; }
+.quiz-question { margin-bottom: 20px; font: 15px Arial, sans-serif; }
+.dashboard-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.dashboard-header button { padding: 8px 11px; }
+.metric-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 12px 0; }
+.metric { background: #f7f8fa; border-radius: 6px; padding: 11px; }
+.metric strong { display: block; font-size: 24px; color: var(--accent-dark); }
+.metric span, .dashboard-note { color: var(--muted); font: 12px Arial, sans-serif; }
+.progress-row { border-top: 1px solid var(--line); padding: 12px 0; font: 13px Arial, sans-serif; }
+.progress-title { display: flex; justify-content: space-between; gap: 8px; font-weight: 700; }
+.progress-bar { height: 6px; background: #e9eaee; border-radius: 6px; margin-top: 8px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--accent); }
+.dashboard-page { max-width: 900px; margin: 0 auto; }
+.dashboard-page .panel { padding: 28px; }
+.dashboard-page .dashboard-header { margin-bottom: 20px; }
+.dashboard-page .dashboard-header h2 { margin: 0; }
+.dashboard-page .progress-row { padding: 16px 0; }
+.dashboard-hero { display: grid; grid-template-columns: 1fr 190px; gap: 24px; align-items: center; background: #172033; color: white; border-radius: 10px; padding: 24px; margin-bottom: 18px; }
+.dashboard-hero h3 { margin: 5px 0 8px; font-size: 27px; }
+.dashboard-hero .dashboard-note { color: #c8d0de; }
+.dashboard-hero .eyebrow { color: #ffb39f; }
+.course-ring { width: 150px; height: 150px; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(var(--accent) var(--progress), #354158 0); position: relative; margin: auto; }
+.course-ring::after { content: ''; width: 112px; height: 112px; border-radius: 50%; background: #172033; position: absolute; }
+.course-ring strong, .course-ring span { position: relative; z-index: 1; }
+.course-ring strong { font-size: 28px; }
+.course-ring span { display: block; color: #c8d0de; font: 11px Arial, sans-serif; text-align: center; }
+.ring-label { display: flex; flex-direction: column; align-items: center; }
+.dashboard-columns { display: grid; grid-template-columns: 1.1fr .9fr; gap: 18px; }
+.course-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; padding: 2px 0 18px; }
+.course-card { width: 100%; background: #fffaf7; color: var(--ink); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 7px; padding: 14px; text-align: left; }
+.course-card:hover { background: var(--soft); color: var(--ink); }
+.course-card.selected { box-shadow: 0 0 0 2px var(--accent); }
+.course-card strong, .course-card span { pointer-events: none; }
+.course-card strong { display: block; margin-bottom: 10px; }
+.course-card .progress-bar { margin: 8px 0 5px; }
+.video-progress-row { width: 100%; background: transparent; color: var(--ink); border: 0; border-top: 1px solid var(--line); border-radius: 0; padding: 12px 0; text-align: left; }
+.video-progress-row:hover { background: var(--soft); }
+.review-list { display: grid; gap: 10px; }
+.review-item { border: 1px solid var(--line); border-radius: 6px; padding: 12px; background: #fafafa; }
+.review-item summary { cursor: pointer; font: 700 13px Arial, sans-serif; }
+.review-question { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; font: 13px/1.45 Arial, sans-serif; }
+.answer-correct { color: #2d7a4d; font-weight: 700; }
+.answer-wrong { color: var(--accent-dark); font-weight: 700; }
+.dashboard-section { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
+.dashboard-section h3 { margin-bottom: 14px; }
+.next-lesson { background: var(--soft); border-left: 4px solid var(--accent); padding: 14px; border-radius: 5px; }
+.next-lesson strong { display: block; margin-bottom: 5px; }
+.lesson-row { width: 100%; background: transparent; color: var(--ink); border: 0; border-top: 1px solid var(--line); border-radius: 0; padding: 16px 0; text-align: left; }
+.lesson-row:hover { background: var(--soft); }
+.dashboard-section .metric-grid { grid-template-columns: repeat(2, 1fr); margin: 0; }
+.coding-form {
+  display: grid;
+  gap: 12px;
+  max-width: 820px;
+}
+
+.coding-form textarea {
+  min-height: 180px;
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px;
+  font: 14px/1.45 monospace;
+}
+
+.coding-result {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 8px;
+  background: var(--soft);
+  border: 1px solid #f4c7b9;
+  font: 14px/1.5 Arial, sans-serif;
+}
+@media (max-width: 850px) { body { padding: 18px; } .topbar { display: block; } .topbar-tools { margin-top: 22px; justify-items: start; } .container { grid-template-columns: 1fr; } .workspace-label { flex-wrap: wrap; } }
+@media (max-width: 650px) { .choice-grid, .dashboard-columns, .dashboard-hero { grid-template-columns: 1fr; } .start-page { margin-top: 4vh; } .course-ring { margin-top: 4px; } .search-controls { flex-wrap: wrap; } .search-controls button { width: 100%; } }
+</style>
+</head>
+<body>
+<div class="shell">
+<div class="topbar">
+<div><div class="eyebrow">CACM · Your learning studio</div><h1>Learn with momentum.</h1><p class="subtitle">Learn a concept. Put it into practice. See what comes next.</p></div>
+<div class="topbar-tools">
+<div class="user-select">
+<label for="studentId">Student ID</label>
+<input type="text" id="studentId" value="student_1" maxlength="80" pattern="[A-Za-z0-9_-]{1,80}" required title="Use letters, digits, underscores, or hyphens." autocomplete="off">
+</div>
+<nav class="main-nav" aria-label="Main navigation">
+<button type="button" id="homeButton" class="button-secondary" aria-current="page">Home</button>
+<button type="button" id="learningButton" class="button-secondary">Learning</button>
+<a href="/research/" id="researchLink">Research papers</a>
+<button type="button" id="codingButton" class="button-secondary">Coding</button>
+<button type="button" id="dashboardButton" class="button-secondary">Dashboard</button>
+</nav></div>
+ </div>
+
+<div id="startView" class="view active start-page">
+<div class="eyebrow">Choose your next step</div>
+<h2>What will you work on today?</h2>
+<p class="intro">Open a learning workspace, practise your code, or pick up where you left off. Use the same Student ID to connect your progress.</p>
+<div class="choice-grid">
+<button type="button" id="courseChoice" class="choice">
+<span class="choice-kicker">01 · Learning Agent</span>
+<h3>Build a course</h3>
+<p>Turn a topic into an ordered roadmap with video lessons, quizzes, and saved course progress.</p>
+<span class="choice-action">Enter course learning →</span>
+</button>
+<button type="button" id="topicChoice" class="choice">
+<span class="choice-kicker">02 · Focused learning</span>
+<h3>Learn one topic</h3>
+<p>Find a video for the concept you need right now, without starting a full course.</p>
+<span class="choice-action">Enter topic search →</span>
+</button>
+<button type="button" id="codingChoice" class="choice choice-coding">
+<span class="choice-kicker">03 · Coding Agent</span>
+<h3>Practise your code</h3>
+<p>Choose a Python problem or paste your own question. Run tests, inspect errors, and save your attempts.</p>
+<span class="choice-action">Enter coding practice →</span>
+</button>
+<button type="button" id="historyChoice" class="choice choice-history">
+<span class="choice-kicker">04 · Shared learning history</span>
+<h3>Review your progress</h3>
+<p>Resume your courses, review quiz answers, and revisit topics suggested by your synced coding attempts.</p>
+<span class="choice-action">Open dashboard →</span>
+</button>
+</div>
+<p class="hub-note">Offline practice starts in the coding workspace: download its offline pack once, then keep learning on this browser.</p>
+<details class="services-panel">
+<summary>Learning services and setup</summary>
+<ul>
+<li>Python practice and basic hints: no AI key required.</li>
+<li>Course planning and quizzes: ${llm ? 'Gemini key configured; availability depends on model access and quota.' : 'add GEMINI_API_KEY to .env, then restart the server.'}</li>
+<li>Video search: ${process.env.YOUTUBE_API_KEY ? 'YouTube key configured; availability depends on API access and quota.' : 'add YOUTUBE_API_KEY to .env, then restart the server.'}</li>
+</ul><p>Course generation and video lessons need internet. Configuring a key does not confirm that the provider accepts it.</p>
+</details>
+</div>
+
+<div id="learningView" class="view">
+<div class="workspace-label"><div><div class="eyebrow">Learning workspace</div><h2 id="workspaceTitle">Choose a lesson</h2></div><span id="workspaceHint">Course progress is off</span></div>
+<div id="codingRevisionContext" class="status" hidden><strong id="codingRevisionTitle"></strong><p>Suggested from your coding practice. Review a lesson, then return to your saved code and run its tests again.</p><a id="returnToCoding" href="/coding/">Return to my code →</a></div>
+<div class="container">
+<div class="main">
+<div class="panel search-panel">
+<label for="topicInput">What do you want to learn?</label>
+<div class="search-controls">
+<input type="text" id="topicInput" placeholder="e.g. Node.js, data structures, photography">
+<button id="primarySearchButton" onclick="searchOneTopic()">Find videos</button>
+</div>
+<p id="learningSetup" class="setup-note" role="status" hidden></p>
+</div>
+
+<div id="status" class="status" role="status" aria-live="polite">Choose a topic to begin.</div>
+<div id="playerHost"><div id="player"><div class="player-placeholder"><div><strong>Your lesson will appear here.</strong>Search for a topic, then select a video.</div></div></div></div>
+<div class="player-actions"><button type="button" onclick="togglePlayerFullscreen()">Full screen</button></div>
+<h3 id="videoTitle">Select a video to start</h3>
+<div id="quizContainer"></div>
+</div>
+
+<div class="sidebar">
+<div class="panel">
+<h3 id="recommendationsHeading">Your course plan</h3>
+<div id="recommendations">Run a search to get AI recommendations</div>
+<h3 id="resultsHeading">Lesson videos</h3>
+<div id="searchResults"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div id="dashboardView" class="view dashboard-page">
+<div class="panel">
+<div class="dashboard-header">
+<div><div class="eyebrow">Your learning record</div><h2>Student dashboard</h2></div>
+<button type="button" onclick="showStartPage()">Choose a workspace</button>
+</div>
+<div id="dashboard"><div class="dashboard-note">Loading student progress...</div></div>
+</div>
+</div>
+<script>
+let player = null;
+let currentVideoId = '';
+let currentVideoTitle = '';
+let syncInterval = null;
+let currentQuiz = null;
+let pendingVideo = null;
+let currentCourseTopic = '';
+let currentCourseId = '';
+let currentLessonTitle = '';
+let currentLessonIndex = 0;
+let currentLearningMode = 'topic';
+let furthestWatchedTime = 0;
+let learningRequest = 0;
+let dashboardRequest = 0;
+let restoringLocation = false;
+let youtubeScript = null;
+let youtubeTimer = null;
+const services = ${JSON.stringify({ gemini: !!llm, youtube: !!process.env.YOUTUBE_API_KEY })};
+const revisionQueries = ${JSON.stringify(require('./coding/public/revision.js').TOPIC_QUERIES)};
+const entryParams = new URLSearchParams(location.search);
+let savedStudent = '';
+try { savedStudent = localStorage.getItem('cacm.activeStudent') || ''; } catch (_) {}
+let activeStudentId = entryParams.get('userId') || savedStudent || 'student_1';
+if (!/^[A-Za-z0-9_-]{1,80}$/.test(activeStudentId)) activeStudentId = 'student_1';
+document.getElementById('studentId').value = activeStudentId;
+currentCourseId = entryParams.get('courseId') || '';
+if (currentCourseId) currentLearningMode = 'course';
+
+document.getElementById('homeButton').addEventListener('click', showStartPage);
+document.getElementById('learningButton').addEventListener('click', function () { currentCourseId ? showDashboard() : beginCourse(); });
+document.getElementById('researchLink').addEventListener('click', function(event) { event.preventDefault(); location.href = '/research/?userId=' + encodeURIComponent(getActiveUserId()); });
+document.getElementById('codingButton').addEventListener('click', showCodingPractice);
+document.getElementById('dashboardButton').addEventListener('click', showDashboard);
+document.getElementById('courseChoice').addEventListener('click', beginCourse);
+document.getElementById('topicChoice').addEventListener('click', beginOneTopic);
+document.getElementById('codingChoice').addEventListener('click', showCodingPractice);
+document.getElementById('historyChoice').addEventListener('click', showDashboard);
+document.getElementById('topicInput').addEventListener('keydown', function (event) {
+  if (event.key === 'Enter') { event.preventDefault(); document.getElementById('primarySearchButton').click(); }
+});
+document.getElementById('studentId').addEventListener('change', function () {
+  if (!this.checkValidity()) { this.reportValidity(); this.value = activeStudentId; return; }
+  if (this.value.trim() === activeStudentId) return;
+  resetWorkspace();
+  activeStudentId = this.value.trim();
+  dashboardRequest++;
+  document.getElementById('dashboard').textContent = '';
+  rememberStudent();
+  showStartPage();
+});
+document.getElementById('dashboard').addEventListener('click', function (event) {
+  const lessonRow = event.target.closest('.lesson-row');
+  if (lessonRow) {
+    currentLearningMode = 'course';
+    currentCourseId = lessonRow.dataset.courseId || '';
+    currentCourseTopic = lessonRow.dataset.courseTopic || '';
+    document.getElementById('topicInput').value = currentCourseTopic;
+    showLearning();
+    loadLesson({
+      title: lessonRow.dataset.lessonTitle,
+      searchQuery: lessonRow.dataset.searchQuery
+    }, Number(lessonRow.dataset.lessonIndex));
+    return;
+  }
+  const videoRow = event.target.closest('[data-video-id]');
+  if (videoRow) {
+    currentLearningMode = 'course';
+    currentCourseId = videoRow.dataset.courseId || '';
+    currentCourseTopic = videoRow.dataset.courseTopic || '';
+    currentLessonTitle = videoRow.dataset.lessonTitle || '';
+    currentLessonIndex = Number(videoRow.dataset.lessonIndex || 0);
+    showLearning();
+    loadVideo(videoRow.dataset.videoId, videoRow.dataset.videoTitle);
+    return;
+  }
+  const courseCard = event.target.closest('[data-course-id]');
+  if (courseCard) selectCourse(courseCard.dataset.courseId);
+});
+
+function getActiveUserId() {
+  return activeStudentId;
+}
+
+function rememberStudent() {
+  try { localStorage.setItem('cacm.activeStudent', activeStudentId); } catch (_) {}
+}
+
+function activateView(view, route) {
+  if (view !== 'learningView') {
+    learningRequest++;
+    document.getElementById('primarySearchButton').disabled = false;
+    pendingVideo = null;
+    if (player && player.pauseVideo) player.pauseVideo();
+    stopProgressTracking();
+  }
+  ['startView', 'learningView', 'dashboardView'].forEach(function (id) {
+    document.getElementById(id).classList.toggle('active', id === view);
+  });
+  ['homeButton', 'learningButton', 'dashboardButton'].forEach(function (id) {
+    const selected = id === ({ startView: 'homeButton', learningView: 'learningButton', dashboardView: 'dashboardButton' })[view];
+    if (selected) document.getElementById(id).setAttribute('aria-current', 'page');
+    else document.getElementById(id).removeAttribute('aria-current');
+  });
+  rememberStudent();
+  if (!restoringLocation) {
+    const url = new URL(location.href);
+    url.searchParams.set('userId', getActiveUserId());
+    if (currentCourseId) url.searchParams.set('courseId', currentCourseId);
+    else url.searchParams.delete('courseId');
+    if (route !== 'topic') ['revisionTopic', 'returnQuestion', 'returnSource', 'videoId', 'videoTitle'].forEach(function (key) { url.searchParams.delete(key); });
+    url.hash = route;
+    if (url.href !== location.href) history.pushState(null, '', url);
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function resetWorkspace() {
+  learningRequest++;
+  document.getElementById('primarySearchButton').disabled = false;
+  document.getElementById('codingRevisionContext').hidden = true;
+  pendingVideo = null;
+  stopProgressTracking();
+  if (player && player.destroy) player.destroy();
+  player = null;
+  currentVideoId = '';
+  currentVideoTitle = '';
+  currentQuiz = null;
+  currentCourseId = '';
+  currentCourseTopic = '';
+  currentLessonTitle = '';
+  currentLessonIndex = 0;
+  document.getElementById('playerHost').innerHTML = '<div id="player"><div class="player-placeholder"><div><strong>Your lesson will appear here.</strong>Search for a topic, then select a video.</div></div></div>';
+  document.getElementById('videoTitle').textContent = 'Select a video to start';
+  document.getElementById('quizContainer').replaceChildren();
+  document.getElementById('searchResults').replaceChildren();
+  document.getElementById('recommendations').textContent = 'Choose a topic above to begin.';
+}
+
+function showLearningSetup() {
+  const messages = [];
+  if (currentLearningMode === 'course' && !services.gemini) messages.push('Course planning needs GEMINI_API_KEY in .env.');
+  if (!services.youtube) messages.push('Video search needs YOUTUBE_API_KEY in .env.');
+  const note = document.getElementById('learningSetup');
+  note.hidden = messages.length === 0;
+  note.textContent = messages.join(' ') + (messages.length ? ' Add the missing key(s), then restart the server. Coding practice is available without these keys.' : '');
+}
+
+function setStatus(message) {
+  document.getElementById('status').innerText = message;
+}
+
+function togglePlayerFullscreen() {
+  const videoContainer = document.getElementById('player');
+  if (document.fullscreenElement) {
+    document.exitFullscreen();
+  } else {
+    videoContainer.requestFullscreen().catch(function () {
+      setStatus('Fullscreen is not available in this browser.');
+    });
+  }
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function onYouTubeIframeAPIReady() {
+  clearTimeout(youtubeTimer);
+  if (pendingVideo) {
+    const video = pendingVideo;
+    pendingVideo = null;
+    loadVideo(video.videoId, video.title);
+  }
+}
+
+function requestYouTubePlayer() {
+  if (youtubeScript) return;
+  youtubeScript = document.createElement('script');
+  youtubeScript.src = 'https://www.youtube.com/iframe_api';
+  youtubeScript.async = true;
+  const failed = function () {
+    clearTimeout(youtubeTimer);
+    if (youtubeScript) youtubeScript.remove();
+    youtubeScript = null;
+    if (pendingVideo) setStatus('Could not load the YouTube player. Check your connection and select the video again. You can still use the other workspaces.');
+    pendingVideo = null;
+  };
+  youtubeScript.onerror = failed;
+  youtubeTimer = setTimeout(failed, 15000);
+  document.head.appendChild(youtubeScript);
+}
+
+async function loadVideo(videoId, title) {
+  const request = learningRequest;
+  currentVideoId = videoId;
+  currentVideoTitle = title;
+  document.getElementById('videoTitle').innerText = title;
+
+  if (!window.YT || !window.YT.Player) {
+    pendingVideo = { videoId: videoId, title: title };
+    setStatus('YouTube player is loading. Your video will open shortly.');
+    requestYouTubePlayer();
+    return;
+  }
+
+  try {
+    let startSeconds = 0;
+    if (currentLearningMode === 'course') {
+      const response = await fetch('/api/progress/resume/' + encodeURIComponent(videoId) + '?userId=' + encodeURIComponent(getActiveUserId()) + '&courseId=' + encodeURIComponent(currentCourseId));
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not load saved progress.');
+      startSeconds = data.currentTime || 0;
+    }
+    if (request !== learningRequest) return;
+    furthestWatchedTime = startSeconds;
+
+    if (player) {
+      player.loadVideoById({ videoId: videoId, startSeconds: Math.floor(startSeconds) });
+    } else {
+      player = new YT.Player('player', {
+        videoId: videoId,
+        playerVars: { start: Math.floor(startSeconds), controls: 0, disablekb: 1, fs: 0, rel: 0 },
+        events: { onStateChange: onPlayerStateChange }
+      });
+    }
+
+    setStatus('Video loaded. Resuming from ' + Math.floor(startSeconds) + ' seconds.');
+  } catch (error) {
+    console.error(error);
+    setStatus('Failed to load video progress.');
+  }
+}
+
+setInterval(function () {
+  if (!player || !player.getCurrentTime || !currentVideoId) return;
+  const currentTime = player.getCurrentTime();
+  if (currentTime > furthestWatchedTime + 2) {
+    player.seekTo(furthestWatchedTime, true);
+    setStatus('Please watch the video in order. Forward seeking is disabled.');
+    return;
+  }
+  furthestWatchedTime = Math.max(furthestWatchedTime, currentTime);
+}, 500);
+
+function onPlayerStateChange(event) {
+  if (event.data === YT.PlayerState.PLAYING) {
+    startProgressTracking();
+  } else {
+    stopProgressTracking();
+  }
+
+  if (event.data === YT.PlayerState.ENDED) {
+    stopProgressTracking();
+    if (currentLearningMode === 'course') {
+      saveFinalProgress();
+      triggerQuiz();
+    } else {
+      setStatus('Topic complete. No course progress or reward was recorded.');
+    }
+  }
+}
+
+function startProgressTracking() {
+  if (syncInterval) clearInterval(syncInterval);
+  syncInterval = setInterval(syncProgress, 5000);
+}
+
+function stopProgressTracking() {
+  if (syncInterval) {
+    clearInterval(syncInterval);
+    syncInterval = null;
+  }
+}
+
+async function syncProgress() {
+  if (!player || !player.getCurrentTime || !currentVideoId) return;
+
+  const currentTime = player.getCurrentTime();
+  const duration = player.getDuration();
+
+  try {
+    const response = await fetch('/api/progress/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: getActiveUserId(),
+        videoId: currentVideoId,
+        title: currentVideoTitle,
+        learningMode: currentLearningMode,
+        courseId: currentCourseId,
+        courseTopic: currentCourseTopic,
+        lessonTitle: currentLessonTitle,
+        lessonIndex: currentLessonIndex,
+        currentTime: currentTime,
+        duration: duration
+      })
+    });
+
+    if (response.ok && document.getElementById('dashboardView').classList.contains('active')) {
+      loadDashboard();
+    }
+  } catch (error) {
+    console.error('Progress sync error:', error);
+  }
+}
+
+async function saveFinalProgress() {
+  if (!player || !currentVideoId) return;
+
+  const currentTime = player.getCurrentTime();
+  const duration = player.getDuration();
+
+  try {
+    const response = await fetch('/api/progress/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: getActiveUserId(),
+        videoId: currentVideoId,
+        title: currentVideoTitle,
+        learningMode: currentLearningMode,
+        courseId: currentCourseId,
+        courseTopic: currentCourseTopic,
+        lessonTitle: currentLessonTitle,
+        lessonIndex: currentLessonIndex,
+        currentTime: duration,
+        duration: duration
+      })
+    });
+
+    if (response.ok) {
+      loadDashboard();
+    }
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+async function searchAndRecommend() {
+  const topic = document.getElementById('topicInput').value.trim();
+  if (!topic) { alert('Please enter a topic.'); return; }
+
+  const request = ++learningRequest;
+  document.getElementById('primarySearchButton').disabled = true;
+  setStatus('AI is creating your learning path...');
+
+  try {
+    currentLearningMode = 'course';
+    document.getElementById('workspaceTitle').innerText = 'Building your course';
+    document.getElementById('workspaceHint').innerText = 'Course progress is on';
+    document.getElementById('recommendationsHeading').innerText = 'Your course plan';
+    document.getElementById('resultsHeading').innerText = 'Lesson videos';
+    document.getElementById('learningView').classList.add('active');
+    document.getElementById('startView').classList.remove('active');
+    const agentResponse = await fetch('/api/agent/recommend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic: topic, userId: getActiveUserId() })
+    });
+
+    const agentData = await agentResponse.json();
+    if (request !== learningRequest) return;
+    if (!agentResponse.ok) throw new Error(agentData.error || 'AI recommendation failed.');
+
+    const lessons = Array.isArray(agentData.lessons) ? agentData.lessons : [];
+    currentCourseTopic = topic;
+    currentCourseId = agentData.courseId || '';
+    const recDiv = document.getElementById('recommendations');
+    recDiv.innerHTML = '';
+
+    lessons.forEach(function (lesson, lessonIndex) {
+      const div = document.createElement('div');
+      div.className = 'recommendation';
+      div.innerHTML = '<strong>' + (lessonIndex + 1) + '. ' + escapeHtml(lesson.title) + '</strong>' +
+        '<br><small>' + escapeHtml(lesson.description) + '</small>';
+      div.setAttribute('role', 'button');
+      div.setAttribute('tabindex', '0');
+      div.addEventListener('click', function () {
+        loadLesson(lesson, lessonIndex);
+      });
+      div.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          div.click();
+        }
+      });
+      recDiv.appendChild(div);
+    });
+
+    if (!lessons.length) {
+      throw new Error('The agent did not return any course lessons.');
+    }
+
+    loadLesson(lessons[0], 0);
+  } catch (error) {
+    console.error(error);
+    if (request === learningRequest) setStatus('Error: ' + error.message);
+  } finally {
+    if (request === learningRequest) document.getElementById('primarySearchButton').disabled = false;
+  }
+}
+
+async function searchOneTopic() {
+  const topic = document.getElementById('topicInput').value.trim();
+  if (!topic) { alert('Please enter a topic.'); return; }
+
+  const request = ++learningRequest;
+  document.getElementById('primarySearchButton').disabled = true;
+  currentLearningMode = 'topic';
+  currentCourseId = '';
+  document.getElementById('workspaceTitle').innerText = 'One-topic search';
+  document.getElementById('workspaceHint').innerText = 'Course progress is off';
+  document.getElementById('recommendationsHeading').innerText = 'About this search';
+  document.getElementById('resultsHeading').innerText = 'Topic videos';
+  document.getElementById('learningView').classList.add('active');
+  document.getElementById('startView').classList.remove('active');
+  currentCourseTopic = '';
+  currentLessonTitle = '';
+  currentLessonIndex = 0;
+  document.getElementById('recommendations').innerHTML = '<div class="dashboard-note">One-topic learning is not added to your course progress.</div>';
+  setStatus('Finding videos for this topic...');
+
+  try {
+    const response = await fetch('/api/youtube/search?q=' + encodeURIComponent(topic));
+    const videos = await response.json();
+    if (request !== learningRequest) return;
+    if (!response.ok) throw new Error(videos.error || 'YouTube search failed.');
+    renderSearchResults(videos);
+    setStatus(videos.length ? 'Topic videos ready. Select a video below to begin.' : 'No videos found. Try a more specific topic.');
+  } catch (error) {
+    console.error(error);
+    if (request === learningRequest) setStatus('Error: ' + error.message);
+  } finally {
+    if (request === learningRequest) document.getElementById('primarySearchButton').disabled = false;
+  }
+}
+
+async function loadLesson(lesson, lessonIndex) {
+    const request = learningRequest;
+    currentCourseTopic = document.getElementById('topicInput').value.trim();
+    currentLessonTitle = lesson.title;
+    currentLessonIndex = lessonIndex;
+    setStatus('Searching videos for lesson ' + (lessonIndex + 1) + ': ' + lesson.title);
+
+  try {
+    const query = lesson.searchQuery || lesson.title;
+    const ytResponse = await fetch('/api/youtube/search?q=' + encodeURIComponent(query) + '&lessonTopic=' + encodeURIComponent(lesson.title));
+    const videos = await ytResponse.json();
+    if (request !== learningRequest) return;
+    if (!ytResponse.ok) throw new Error(videos.error || 'YouTube search failed.');
+
+    renderSearchResults(videos);
+    if (!videos.length) {
+      setStatus('No videos were found for this lesson. Try searching the topic again.');
+      document.getElementById('player').innerHTML = '<div class="dashboard-note" style="padding:24px;color:white">No playable video found for this lesson.</div>';
+      return;
+    }
+    setStatus('Videos ready for lesson ' + (lessonIndex + 1) + '. Playing the first video.');
+    loadVideo(videos[0].videoId, videos[0].title);
+  } catch (error) {
+    console.error(error);
+    if (request === learningRequest) setStatus('Error: ' + error.message);
+  }
+}
+
+function renderSearchResults(videos) {
+    const searchDiv = document.getElementById('searchResults');
+    searchDiv.innerHTML = '';
+
+    videos.forEach(function (video) {
+      const card = document.createElement('div');
+      card.className = 'video-card';
+      card.setAttribute('role', 'button');
+      card.tabIndex = 0;
+      card.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); card.click(); }
+      });
+
+      const strong = document.createElement('strong');
+      strong.innerText = video.title;
+
+      const br = document.createElement('br');
+
+      const small = document.createElement('small');
+      small.innerText = video.channelTitle;
+
+      card.appendChild(strong);
+      card.appendChild(br);
+      card.appendChild(small);
+
+      card.addEventListener('click', function () {
+        loadVideo(video.videoId, video.title);
+      });
+
+      searchDiv.appendChild(card);
+    });
+}
+
+async function triggerQuiz() {
+  if (currentLearningMode !== 'course') return;
+  const topic = document.getElementById('topicInput').value.trim() || 'Lesson';
+  setStatus('Video completed! Generating AI quiz...');
+
+  try {
+    const response = await fetch('/api/agent/quiz', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic: topic, userId: getActiveUserId() })
+    });
+
+    const quiz = await response.json();
+    if (!response.ok) throw new Error(quiz.error || 'Quiz generation failed.');
+    if (!quiz.questions || !Array.isArray(quiz.questions)) throw new Error('Invalid quiz received.');
+
+    currentQuiz = quiz;
+    renderQuiz(quiz);
+    setStatus('Quiz generated. Answer all questions.');
+  } catch (error) {
+    console.error('Quiz error:', error);
+    setStatus('Quiz error: ' + error.message);
+  }
+}
+
+function renderQuiz(quiz) {
+  const container = document.getElementById('quizContainer');
+  container.innerHTML = '';
+
+  const box = document.createElement('div');
+  box.className = 'quiz-box';
+
+  const heading = document.createElement('h3');
+  heading.innerText = 'Lesson Completed! AI Quiz';
+  box.appendChild(heading);
+
+  quiz.questions.forEach(function (question, questionIndex) {
+    const questionDiv = document.createElement('div');
+    questionDiv.className = 'quiz-question';
+
+    const questionText = document.createElement('p');
+    questionText.innerHTML = '<strong>Q' + (questionIndex + 1) + ': ' + question.question + '</strong>';
+    questionDiv.appendChild(questionText);
+
+    question.options.forEach(function (option, optionIndex) {
+      const label = document.createElement('label');
+      const radio = document.createElement('input');
+      radio.type = 'radio';
+      radio.name = 'question-' + questionIndex;
+      radio.value = option;
+
+      label.appendChild(radio);
+      label.appendChild(document.createTextNode(' ' + option));
+
+      questionDiv.appendChild(label);
+      questionDiv.appendChild(document.createElement('br'));
+    });
+
+    box.appendChild(questionDiv);
+  });
+
+  const submitButton = document.createElement('button');
+  submitButton.innerText = 'Submit Quiz';
+  submitButton.addEventListener('click', submitQuiz);
+  box.appendChild(submitButton);
+
+  container.appendChild(box);
+}
+
+async function submitQuiz() {
+  if (!currentQuiz) return;
+
+  const answers = [];
+  for (let i = 0; i < currentQuiz.questions.length; i++) {
+    const selected = document.querySelector('input[name="question-' + i + '"]:checked');
+    if (!selected) { alert('Please answer question ' + (i + 1)); return; }
+    answers.push(selected.value);
+  }
+
+  
+  try {
+    const response = await fetch('/api/quiz/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: getActiveUserId(),
+        topic: document.getElementById('topicInput').value,
+        courseId: currentCourseId,
+        videoId: currentVideoId,
+        answers: answers,
+        questions: currentQuiz.questions
+      })
+    });
+
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Quiz submission failed.');
+
+    const percentage = Math.round((result.score / result.total) * 100);
+    const feedback = currentQuiz.questions.map(function (question, index) {
+      const answer = answers[index];
+      const correct = answer === question.answer;
+      return '<div class="review-question"><strong>Q' + (index + 1) + ': ' + escapeHtml(question.question) + '</strong><div>Your answer: <span class="' + (correct ? 'answer-correct' : 'answer-wrong') + '">' + escapeHtml(answer) + '</span></div><div>Correct answer: <span class="answer-correct">' + escapeHtml(question.answer || '') + '</span></div>' + (question.explanation ? '<div>Explanation: ' + escapeHtml(question.explanation) + '</div>' : '') + '</div>';
+    }).join('');
+
+    document.getElementById('quizContainer').innerHTML =
+      '<div class="quiz-box"><h3>Quiz Result</h3><p>You scored <strong>' +
+      result.score + '/' + result.total + '</strong></p><p>Score: ' + percentage + '%</p>' + feedback + '</div>';
+
+    setStatus('Quiz submitted successfully.');
+  } catch (error) {
+    console.error(error);
+    setStatus('Quiz submission error: ' + error.message);
+  }
+}
+
+async function loadDashboard(courseId) {
+  const request = ++dashboardRequest;
+  const userId = getActiveUserId();
+  document.getElementById('dashboard').textContent = 'Loading your learning history…';
+  try {
+    const query = courseId ? '?courseId=' + encodeURIComponent(courseId) : '';
+    const response = await fetch('/api/student/' + encodeURIComponent(userId) + '/dashboard' + query);
+    const data = await response.json();
+    if (request !== dashboardRequest || userId !== getActiveUserId()) return;
+    if (!response.ok) throw new Error(data.error || 'Dashboard failed.');
+    if (document.getElementById('dashboardView').classList.contains('active')) {
+      currentCourseId = data.selectedCourseId || '';
+      currentCourseTopic = data.currentTopic || '';
+      currentLearningMode = currentCourseId ? 'course' : 'topic';
+    }
+
+    const dashboard = document.getElementById('dashboard');
+    const history = Array.isArray(data.history) ? data.history : [];
+    const progressRows = history.length
+      ? history.map(function (video) {
+          const watched = video.completed
+            ? 100
+            : Math.round(video.percentWatched || 0);
+          const title = escapeHtml(video.title || video.videoId);
+          return '<button type="button" class="progress-row video-progress-row" data-video-id="' + escapeHtml(video.videoId) + '" data-video-title="' + escapeHtml(video.title || video.videoId) + '" data-course-id="' + escapeHtml(video.courseId || '') + '" data-course-topic="' + escapeHtml(video.courseTopic || '') + '" data-lesson-title="' + escapeHtml(video.lessonTitle || '') + '" data-lesson-index="' + (video.lessonIndex || 0) + '">' +
+            '<div class="progress-title"><span>' + title + '</span><span>' + watched + '%</span></div>' +
+            '<div class="progress-bar"><div class="progress-fill" style="width:' + watched + '%"></div></div>' +
+            '<div class="dashboard-note">' + (video.completed ? 'Completed lesson - Resume' : 'In progress - Resume') + '</div>' +
+          '</button>';
+        }).join('')
+      : '<div class="dashboard-note">No videos watched yet. Start a lesson to see progress here.</div>';
+    function lessonMarkup(lesson) {
+          const lessonIndex = lesson.lessonIndex;
+          const state = lesson.completed
+            ? 'Completed'
+            : lesson.id === data.nextStep?.id
+              ? 'Next lesson'
+              : 'Upcoming';
+          return '<button type="button" class="progress-row lesson-row" data-lesson-index="' + lessonIndex + '" data-course-id="' + escapeHtml(data.selectedCourseId || '') + '" data-course-topic="' + escapeHtml(data.currentTopic || '') + '" data-lesson-title="' + escapeHtml(lesson.title) + '" data-search-query="' + escapeHtml(lesson.searchQuery || lesson.title) + '"><div class="progress-title"><span>' +
+            (lessonIndex + 1) + '. ' + escapeHtml(lesson.title) + '</span><span>' + state + '</span></div>' +
+            '<div class="dashboard-note">' + escapeHtml(lesson.description || '') + ' - Watch lesson</div></button>';
+    }
+    function revisionMarkup(task, courseId, isNext) {
+      const questionId = task.questionIds?.[0] || '';
+      const href = '/coding/?userId=' + encodeURIComponent(userId) + '&courseId=' + encodeURIComponent(courseId || '') + '&question=' + encodeURIComponent(questionId);
+      const lessonHref = '/?userId=' + encodeURIComponent(userId) + '&courseId=' + encodeURIComponent(courseId || '') + '&revisionTopic=' + encodeURIComponent(task.topic) + '&returnQuestion=' + encodeURIComponent(questionId) + '#topic';
+      const videoLink = Object.prototype.hasOwnProperty.call(revisionQueries, task.topic) ? '<a href="' + escapeHtml(lessonHref) + '">' + (isNext ? 'Review topic videos' : 'Find topic videos') + '</a> · ' : '';
+      return '<div class="next-lesson coding-revision-step" data-revision-topic="' + escapeHtml(task.topic) + '"><strong>' + escapeHtml(task.title) + '</strong><p class="dashboard-note">Added from repeated coding mistakes.</p><p class="dashboard-note">' + escapeHtml(task.instructions) + '</p><p class="dashboard-note">' + escapeHtml(task.recoveryRequired || '') + '</p>' + videoLink + '<a href="' + escapeHtml(href) + '">' + (isNext ? 'Try revision practice' : 'Open revision practice') + '</a></div>';
+    }
+    const learningPath = data.learningPath || (data.curriculum || []).map(function (lesson, lessonIndex) { return Object.assign({}, lesson, { kind: 'lesson', lessonIndex: lessonIndex }); });
+    function pathStepMarkup(step, isNext) {
+      return step.kind === 'coding_revision' ? revisionMarkup(step, data.selectedCourseId, isNext) : lessonMarkup(step);
+    }
+    const curriculumRows = learningPath.length ? learningPath.map(function (step) { return pathStepMarkup(step, false); }).join('') : '<div class="dashboard-note">Start a course or practise coding to build your learning path.</div>';
+    const nextStep = data.nextStep || learningPath.find(function (step) { return !step.completed; });
+    const courseTitle = escapeHtml(data.currentTopic || 'Your learning path');
+    const courseStatus = escapeHtml(data.courseStatus === 'completed' ? 'Course complete' : data.learningMode === 'course' ? 'Active course' : 'No active course');
+    const nextLessonMarkup = nextStep ? pathStepMarkup(nextStep, true)
+      : '<div class="next-lesson"><strong>' + (learningPath.length ? 'All current steps complete' : 'Choose a learning path') + '</strong><span class="dashboard-note">Continue practising or start a course from Home.</span></div>';
+    const activeCourseCards = Array.isArray(data.courses)
+      ? data.courses.filter(function (course) { return course.status !== 'completed'; }).map(function (course) {
+          const selected = course.courseId === data.selectedCourseId ? ' selected' : '';
+          return '<button type="button" class="course-card' + selected + '" data-course-id="' + escapeHtml(course.courseId) + '"><strong>' + escapeHtml(course.topic) + '</strong><span class="dashboard-note">' + escapeHtml(course.status) + (course.pendingCodingReviews ? ' · ' + course.pendingCodingReviews + ' coding review(s)' : '') + '</span><div class="progress-bar"><div class="progress-fill" style="width:' + course.progress + '%"></div></div><span class="dashboard-note">' + course.progress + '% complete · ' + course.completedLessons + '/' + course.totalLessons + ' lessons</span></button>';
+        }).join('')
+      : '';
+    const courseCards = activeCourseCards || '<div class="dashboard-note">No current courses. Start one from Home.</div>';
+    const completedCourseCards = Array.isArray(data.courses)
+      ? data.courses.filter(function (course) { return course.status === 'completed'; }).map(function (course) {
+          return '<button type="button" class="course-card" data-course-id="' + escapeHtml(course.courseId) + '"><strong>' + escapeHtml(course.topic) + '</strong><span class="dashboard-note">Completed</span><div class="progress-bar"><div class="progress-fill" style="width:100%"></div></div><span class="dashboard-note">100% complete · ' + course.completedLessons + '/' + course.totalLessons + ' lessons</span></button>';
+        }).join('')
+      : '';
+    const completedCoursesMarkup = completedCourseCards
+      ? '<h3 style="margin-top:18px">Completed courses</h3><div class="course-list">' + completedCourseCards + '</div>'
+      : '';
+    const quizReviews = Array.isArray(data.quizScores) && data.quizScores.length
+      ? data.quizScores.slice().reverse().map(function (quiz) {
+          const questions = Array.isArray(quiz.questions) ? quiz.questions : [];
+          const questionMarkup = questions.length
+            ? questions.map(function (question, questionIndex) {
+                const selected = quiz.answers?.[questionIndex] || 'Not answered';
+                const correct = selected === question.answer;
+                return '<div class="review-question"><strong>Q' + (questionIndex + 1) + ': ' + escapeHtml(question.question) + '</strong><div>Your answer: <span class="' + (correct ? 'answer-correct' : 'answer-wrong') + '">' + escapeHtml(selected) + '</span></div><div>Correct answer: <span class="answer-correct">' + escapeHtml(question.answer || '') + '</span></div>' + (question.explanation ? '<div>Explanation: ' + escapeHtml(question.explanation) + '</div>' : '') + '</div>';
+              }).join('')
+            : '<div class="dashboard-note">This quiz was completed before answer review was enabled.</div>';
+          return '<details class="review-item"><summary>' + escapeHtml(quiz.topic || 'Quiz') + ' · ' + quiz.score + '/' + quiz.total + '</summary>' + questionMarkup + '</details>';
+        }).join('')
+      : '<div class="dashboard-note">Complete a course quiz to review your answers here.</div>';
+
+    const independentMarkup = (data.independentRevisionTasks || []).map(function (task) { return revisionMarkup(task, '', false); }).join('');
+    const pendingNotice = new URLSearchParams(location.search).has('codingPending') ? '<p class="dashboard-note">Some coding attempts are still on this browser waiting to sync. This path shows the last saved server state. Return to Coding and check Sync now.</p>' : '';
+
+    dashboard.innerHTML =
+      pendingNotice +
+      '<h3>Current courses</h3><div class="course-list">' + courseCards + '</div>' + completedCoursesMarkup +
+      '<div class="dashboard-hero">' +
+        '<div><div class="eyebrow">' + courseStatus + '</div><h3>' + courseTitle + '</h3>' +
+          '<div class="dashboard-note">Your learning path, next step, and recent activity in one place.</div></div>' +
+        '<div class="course-ring" style="--progress:' + data.courseProgress + '%"><div class="ring-label"><strong>' + data.courseProgress + '%</strong><span>course progress</span></div></div>' +
+      '</div>' +
+      '<div class="dashboard-columns">' +
+        '<section class="dashboard-section"><h3>Next step</h3><div id="nextLearningStep">' + nextLessonMarkup + '</div><h3 style="margin-top:22px">Learning path</h3><p class="dashboard-note">Synced coding mistakes can add revision before your next lesson. Lesson progress is kept.</p><div id="learningPath">' + curriculumRows + '</div>' + (independentMarkup ? '<h3 style="margin-top:22px">Independent coding revision</h3><p class="dashboard-note">These topics are outside your current courses.</p>' + independentMarkup : '') + '</section>' +
+        '<section class="dashboard-section"><h3>Your activity</h3><div class="metric-grid">' +
+          '<div class="metric"><strong>' + data.completedVideos + '</strong><span>Completed</span></div>' +
+          '<div class="metric"><strong>' + data.totalVideosAttempted + '</strong><span>Lessons started</span></div>' +
+          '<div class="metric"><strong>' + data.averageProgress + '%</strong><span>Average watch</span></div>' +
+          '<div class="metric"><strong>' + data.totalWatchTimeMinutes + 'm</strong><span>Watch time</span></div>' +
+        '</div><h3 style="margin-top:22px">Recent videos</h3>' + progressRows + '</section>' +
+      '</div><section class="dashboard-section" style="margin-top:18px"><h3>Review your answers</h3><div class="review-list">' + quizReviews + '</div></section>';
+  } catch (error) {
+    console.error(error);
+    if (request === dashboardRequest && userId === getActiveUserId()) document.getElementById('dashboard').textContent = 'Dashboard unavailable: ' + error.message;
+  }
+}
+function showCodingPractice() {
+  rememberStudent();
+  window.location.href = '/coding/?userId=' + encodeURIComponent(getActiveUserId()) + '&courseId=' + encodeURIComponent(currentCourseId || '');
+}
+
+function showDashboard() {
+  activateView('dashboardView', 'dashboard');
+  loadDashboard(currentCourseId);
+}
+
+function selectCourse(courseId) {
+  currentCourseId = courseId;
+  showDashboard();
+}
+
+function showLearning() {
+  activateView('learningView', currentLearningMode === 'course' ? 'course' : 'topic');
+  const isCourse = currentLearningMode === 'course';
+  document.getElementById('workspaceTitle').textContent = isCourse ? 'Build a course' : 'Learn one topic';
+  document.getElementById('workspaceHint').textContent = isCourse ? 'Course progress is on' : 'Course progress is off';
+  document.getElementById('primarySearchButton').textContent = isCourse ? 'Plan my course' : 'Find videos';
+  document.getElementById('primarySearchButton').onclick = isCourse ? searchAndRecommend : searchOneTopic;
+  document.getElementById('recommendationsHeading').textContent = isCourse ? 'Your course plan' : 'About this search';
+  document.getElementById('resultsHeading').textContent = isCourse ? 'Lesson videos' : 'Topic videos';
+  showLearningSetup();
+}
+
+function showStartPage() {
+  activateView('startView', 'home');
+}
+
+function beginCourse() {
+  resetWorkspace();
+  currentLearningMode = 'course';
+  showLearning();
+  setStatus('Enter a subject, then choose Plan my course.');
+  document.getElementById('topicInput').focus();
+}
+
+function beginOneTopic() {
+  resetWorkspace();
+  currentLearningMode = 'topic';
+  showLearning();
+  setStatus('Enter a topic, then choose Find videos.');
+  document.getElementById('topicInput').focus();
+}
+
+function openCodingRevision(query) {
+  const topic = query.get('revisionTopic');
+  if (!Object.prototype.hasOwnProperty.call(revisionQueries, topic)) { beginOneTopic(); return; }
+  beginOneTopic();
+  const back = new URLSearchParams({ userId: getActiveUserId() });
+  if (query.get('courseId')) back.set('courseId', query.get('courseId'));
+  if (query.get('returnQuestion')) back.set('question', query.get('returnQuestion'));
+  if (query.get('returnSource') === 'custom') back.set('source', 'custom');
+  document.getElementById('returnToCoding').href = '/coding/?' + back;
+  document.getElementById('codingRevisionTitle').textContent = 'Review ' + topic.replace(/_/g, ' ');
+  document.getElementById('codingRevisionContext').hidden = false;
+  document.getElementById('topicInput').value = revisionQueries[topic];
+  document.getElementById('recommendations').textContent = 'These videos support revision of the topic from your attempts. Watching a video does not change your coding estimate; retry the problem after reviewing.';
+  const videoId = query.get('videoId');
+  if (/^[A-Za-z0-9_-]{11}$/.test(videoId || '')) {
+    loadVideo(videoId, (query.get('videoTitle') || 'Topic revision video').slice(0, 200));
+  } else {
+    searchOneTopic();
+  }
+  document.getElementById('workspaceTitle').textContent = 'Review ' + topic.replace(/_/g, ' ');
+  document.getElementById('workspaceHint').textContent = 'Revision from coding practice';
+}
+
+function openLocation() {
+  restoringLocation = true;
+  const query = new URLSearchParams(location.search);
+  const userId = query.get('userId');
+  if (userId && /^[A-Za-z0-9_-]{1,80}$/.test(userId) && userId !== activeStudentId) {
+    resetWorkspace(); dashboardRequest++;
+    activeStudentId = userId;
+    document.getElementById('studentId').value = userId;
+  }
+  const route = location.hash.slice(1);
+  if (route === 'course') beginCourse();
+  else if (route === 'topic' && query.has('revisionTopic')) openCodingRevision(query);
+  else if (route === 'topic') beginOneTopic();
+  else if (route === 'dashboard') { currentCourseId = query.get('courseId') || ''; showDashboard(); }
+  else showStartPage();
+  restoringLocation = false;
+}
+window.addEventListener('popstate', openLocation);
+window.addEventListener('storage', function (event) {
+  if (event.key !== 'cacm.codingUpdated' || !document.getElementById('dashboardView').classList.contains('active')) return;
+  try { if (JSON.parse(event.newValue).userId === getActiveUserId()) loadDashboard(currentCourseId); } catch (_) {}
+});
+openLocation();
+</script>
+</body>
+</html>
+`);
+});
+
+
+// ======================================================
+// 14. START SERVER (fixed: now waits for MongoDB to be
+//     connected before accepting requests)
+// ======================================================
+
+require('./research/index.cjs').installResearch({ app });
+
+const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '127.0.0.1';
+
+if (require.main === module) {
+  connectDB().then(() => {
+    app.listen(PORT, HOST, () => {
+      console.log(`Learning app: http://localhost:${PORT}`);
+      console.log(`Offline Python practice: http://localhost:${PORT}/coding/`);
+    });
+  });
+}
+module.exports = { app, connectDB, coding, LearnerProfile, LearningHistory, Student, UserProgress };

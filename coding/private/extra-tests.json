@@ -1,0 +1,14 @@
+{
+  "print-through-n": [{"stdin":"2\n","expected":"1\n2\n"}],
+  "sum-array": [{"args":[[9,-9,6]],"expected":6}],
+  "reverse-string": [{"args":["xyz!"],"expected":"!zyx"}],
+  "find-largest": [{"args":[[-100,-30,-1]],"expected":-1}],
+  "count-vowels": [{"args":["Apple PIE"],"expected":4}],
+  "binary-search": [{"args":[[-10,-3,0,4,9],-10],"expected":0}],
+  "palindrome": [{"args":["a b a"],"expected":true}],
+  "balanced-brackets": [{"args":["{[()]}"],"expected":true}],
+  "factorial": [{"args":[10],"expected":3628800}],
+  "max-subarray": [{"args":[[2,-1,3,-8,4]],"expected":4}],
+  "unique-window": [{"args":["dvdf"],"expected":3}],
+  "stair-ways": [{"args":[8],"expected":34}]
+}

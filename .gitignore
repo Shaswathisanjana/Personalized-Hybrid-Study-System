@@ -1,0 +1,8 @@
+node_modules/
+.env
+test-results/
+*.log
+
+outputs/
+.venv/
+__pycache__/

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#244de8"><title>Python Practice · CACM</title>
+  <link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icon.svg">
+  <link rel="stylesheet" href="./app.css">
+  <script src="./core.js" defer></script><script src="./db.js" defer></script>
+  <script src="./runner.js" defer></script><script src="./revision.js" defer></script><script src="./app.js" defer></script>
+</head>
+<body>
+  <header><a id="homeLink" class="brand" href="/">CACM <span>Home</span></a><nav class="module-nav" aria-label="Main navigation"><a id="learningLink" href="/#dashboard">Learning path</a><a id="dashboardLink" href="/#dashboard">Dashboard</a><span id="connection" class="pill">Checking connection</span></nav></header>
+  <main>
+    <section class="intro"><p class="eyebrow">WRITE · RUN · UNDERSTAND</p><h1>Learn from what your code does.</h1><p>Run Python on your laptop, inspect real errors, and turn practice into your next learning step.</p></section>
+    <section class="toolbar card">
+      <label>Student ID<input id="userId" maxlength="80" autocomplete="off"></label><button id="loadStudent" class="secondary">Load student</button>
+      <label class="grow">Link attempts to a course<select id="course"><option value="">Independent practice</option></select></label>
+      <div><button id="downloadPack" class="secondary">Download offline pack</button><p id="packStatus" class="small" role="status">Offline pack not checked.</p></div>
+    </section>
+    <p id="status" role="status" aria-live="polite">Loading practice…</p>
+    <div class="workspace">
+      <section class="card problem">
+        <h2>01 <span>Choose a problem</span></h2>
+        <label>Question source<select id="source"><option value="bank">Practice bank</option><option value="custom">Paste my own question</option></select></label>
+        <label id="bankLabel">Practice question<select id="question"></select></label>
+        <div id="bankProblem"><h3 id="questionTitle"></h3><p id="description"></p><p id="constraints" class="small"></p><p id="contract" class="note"></p><details><summary>Sample tests</summary><pre id="samples"></pre></details><details><summary>Concept hint</summary><p id="conceptHint"></p></details></div>
+        <div id="customProblem" hidden>
+          <label>Title<input id="customTitle" maxlength="200" placeholder="e.g. Two Sum"></label>
+          <label>Question<textarea id="customDescription" rows="6" maxlength="15000" placeholder="Paste the problem and its rules here."></textarea></label>
+          <label>Topic you want to practise<select id="customTopic"></select></label>
+          <label>How the solution runs<select id="customMode"><option value="function">Function: solve(...) returns an answer</option><option value="stdout">Program: input() and print()</option></select></label>
+          <label>Tests (JSON array)<textarea id="customTests" rows="7" spellcheck="false">[{"args":[[1,2,3]],"expected":6}]</textarea></label>
+          <details open><summary>How to write tests</summary><p class="small">Function example: <code>[{"args":[[1,2,3]],"expected":6}]</code>. Standard input/output: <code>[{"stdin":"3\n","expected":"1\n2\n3\n"}]</code>. Omit <code>expected</code> for an exploratory run, which cannot count as a correct solution.</p><p class="small">For LeetCode methods, add an adapter such as <code>def solve(nums, target): return Solution().twoSum(nums, target)</code>. Expected results use exact JSON comparison; use an adapter if the problem accepts multiple valid answers.</p></details>
+        </div>
+      </section>
+      <section class="card editor">
+        <h2>02 <span>Write Python</span></h2>
+        <div class="editorbar"><span id="modeLabel" class="small">Python · standard library</span><button id="errorExample" class="link-button">Try the missing-colon example</button></div>
+        <label class="sr-only" for="code">Python source code</label><textarea id="code" rows="17" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+        <p id="draftStatus" class="small">Drafts save on this browser.</p>
+        <div class="actions"><button id="run">Run tests</button><button id="stop" class="secondary" disabled>Stop</button><span class="small">4-second execution limit</span></div>
+        <div id="result" aria-live="polite"><p class="muted">Your Python diagnostic and test results will appear here.</p></div>
+        <details id="workedSolution" hidden><summary>Study a worked solution for this bank question</summary><p id="solutionExplanation"></p><pre id="solutionCode"></pre><p id="solutionComplexity" class="small"></p></details>
+        <div class="actions"><button id="explain" class="secondary" disabled>Ask for an AI explanation</button><button id="verify" class="secondary" disabled>Verify on server</button></div>
+        <p id="aiConfig" class="small">AI explanations are optional.</p><div id="aiResult"></div>
+      </section>
+    </div>
+    <div class="workspace lower">
+      <section id="learningSteps" class="card"><h2>03 <span>Your next learning steps</span></h2><p id="stateSource" class="small"></p><p class="small">Repeated unsuccessful solutions suggest a topic review with videos. You can also request videos for any recorded topic below. Video search needs internet and a configured YouTube key.</p><div id="revisions"></div><div id="concepts"></div></section>
+      <section class="card"><div class="sectionline"><h2>Attempt history</h2><button id="sync" class="secondary">Sync now</button><button id="export" class="secondary">Export my attempts</button></div><p id="syncStatus" class="small"></p><div id="history"></div></section>
+    </div>
+    <footer>Python runs in a disposable browser worker. Offline support covers this practice page and Python’s bundled standard library. Video lessons, online course generation, and server verification need their services. Browser storage can be cleared: export important work.</footer>
+  </main>
+</body>
+</html>
