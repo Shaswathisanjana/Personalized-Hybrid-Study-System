@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # CACM Learning with Research Agent and Gemini
 
 ## Start the upgraded app
@@ -300,3 +301,9 @@ Four additional client-function checks passed for the Student ID fix: repeated s
 - [Judge0 API](https://ce.judge0.com/)
 
 Pyodide is pinned to `314.0.7`; `package-lock.json` fixes the installed dependency graph. When changing runtime files, question data, or browser code, increment the service-worker cache version and the question-pack version where appropriate.
+=======
+# Personalized-Hybrid-Study-System
+Sem7 Project - Personalized Hybrid Study System (PHSS)
+
+To run : npm install dotenv express mongoose axios @langchain/langgraph @langchain/google-genai @langchain/core
+>>>>>>> origin/siri-priya
