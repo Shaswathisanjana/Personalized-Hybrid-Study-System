@@ -1,0 +1,8 @@
+# Direct application dependencies observed in the verified Windows workspace.
+# Transitive dependencies are resolved by pip; this is not a full lock file.
+streamlit==1.64.0
+google-genai==2.24.0
+python-dotenv==1.2.3
+pypdf==6.21.1
+python-docx==1.2.0
+lxml==6.1.3
