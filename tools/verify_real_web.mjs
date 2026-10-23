@@ -1,0 +1,15 @@
+import {chromium} from '../frontend/node_modules/@playwright/test/index.mjs';
+import fs from 'node:fs';
+const browser=await chromium.launch({channel:'chrome',headless:true});
+const page=await browser.newPage({viewport:{width:1440,height:1000}});
+const errors=[];page.on('pageerror',e=>errors.push(e.message));
+await page.goto('http://127.0.0.1:8000/');
+await page.getByRole('heading',{name:'A workspace that learns how you learn.'}).waitFor();
+const health=await (await page.request.get('http://127.0.0.1:8000/api/health')).json();
+const profiles=await (await page.request.get('http://127.0.0.1:8000/api/profiles')).json();
+if(errors.length||profiles.length!==0)throw Error(JSON.stringify({errors,profiles:profiles.length}));
+fs.mkdirSync('data/web-e2e/screenshots',{recursive:true});
+await page.screenshot({path:'data/web-e2e/screenshots/real-application.png',fullPage:true});
+fs.writeFileSync('data/web-real-startup.json',JSON.stringify({health,profiles:profiles.length,browserErrors:errors},null,2));
+console.log('PASS real React + FastAPI startup; empty independent database; no browser errors');
+await browser.close();

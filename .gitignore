@@ -216,3 +216,29 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# CACM Research Agent - generated and temporary files
+data/research_reports/
+*.bak
+
+# Local student records and pre-edit milestone backups
+data/student_state/
+.milestone_backups/
+data/evaluation/
+
+# Independent web application
+frontend/node_modules/
+frontend/dist/
+frontend/audit-results.json
+data/web-e2e/
+data/web-*.sqlite3
+node_modules/
+
+# Local runtime data and credentials (never publish)
+/data/
+.env.*
+!.env.example
+!.env.template
+*.sqlite3
+*.sqlite3-*
+*.db
