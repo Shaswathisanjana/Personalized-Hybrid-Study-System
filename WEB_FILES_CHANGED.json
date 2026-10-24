@@ -57,7 +57,11 @@
     "backend/tests/test_report_synthesis.py",
     "GROUNDED_REPORT_WRITING_REPORT.md",
     "frontend/src/components/ProgressDashboard.tsx",
-    "frontend/e2e/progress.spec.ts"
+    "frontend/e2e/progress.spec.ts",
+    "backend/practice_context.py",
+    "backend/tests/test_learning_topic_quiz.py",
+    "frontend/e2e/learning-quiz.spec.ts",
+    "LEARNING_QUIZ_TOPIC_FIX.md"
   ],
   "latest_refinement": "CODE_REVIEW_FIX_REPORT.md",
   "generated_content_excluded": [

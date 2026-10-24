@@ -10,6 +10,8 @@ from app.persistence.streamlit_state import load_profile, save_state
 from app.orchestrator.student_journey import StudentJourneyService
 from app.orchestrator.study_workspace import start_workspace, prepare_active, ensure_learning, advance_workspace
 
+from backend.practice_context import bind_practice, visible_practice
+
 ROOT = Path(__file__).resolve().parents[1]
 
 def public(value):
@@ -56,11 +58,11 @@ class Application:
             lesson=next((x.output for x in result.agent_results if x.agent=='learning'),None)
         from app.learning_agent.study_planner import LearningStudyPlanner
         study_plan=LearningStudyPlanner().create_plan(student,engine,concept) if concept else None
-        session=s.get('practice_session')
+        session=visible_practice(s)
         output=public(dict(student=student,plan=plan,clarification=s.get('journey_clarification'),lesson=lesson,
             exercise=s.get('advanced_coding_exercise'),code=s.get('advanced_coding_editor',''),
             hints=s.get('advanced_coding_hint_history',[]),coding_result=s.get('advanced_coding_submission_record'),
-            review=s.get('advanced_coding_guided_result'),code_review=s.get('standalone_code_review'),practice=session,feedback=s.get('practice_last_outcome'),
+            review=s.get('advanced_coding_guided_result'),code_review=s.get('standalone_code_review'),practice=session,feedback=s.get('practice_last_outcome') if session else None,
             research_question=s.get('research_assessment_question'),research_feedback=s.get('research_assessment_feedback'),
             diagnostic=s.get('learning_diagnostic_session'),diagnostic_outcome=s.get('learning_diagnostic_outcome'),
             conflicts=engine.active_conflicts,evidence=engine.evidence_store.get_all_evidence(),
@@ -88,7 +90,10 @@ class Application:
         step=prepare_active(s)
         if step is None:return
         if s.get('journey_clarification'):raise ValueError('Resolve the pending clarification first.')
-        if step['agent']=='learning': ensure_learning(s,lambda:save_state(s),retry=retry)
+        if step['agent']=='learning':
+            bind_practice(s)
+            save_state(s)
+            ensure_learning(s,lambda:save_state(s),retry=retry)
         elif step['status']=='ready': return
         elif step['status'] in ('error','running') and not retry:
             raise ValueError('Preparation interrupted; retry explicitly.')
@@ -184,15 +189,22 @@ class Application:
             review.update(status='error',error='AI review unavailable. Your pasted code and syntax inspection are saved. Retry explicitly.')
         save_state(s)
     def practice_start(self,s,count):
+        bind_practice(s)
+        save_state(s)
         existing=s.get('practice_session')
         if existing and not existing.is_complete:raise ValueError('Complete or resume the current assessment first.')
         plan=s.get('journey_workspace')
         if not plan:raise ValueError('Start a study request first.')
         result=s['orchestrator'].learning_runtime.start_practice_session(s['student'],plan['concept'],plan['query'],count)
-        s['practice_session']=result.session;save_state(s)
+        s['practice_session']=result.session
+        s.pop('practice_last_outcome',None)
+        save_state(s)
     def practice_answer(self,s,answer,question_id):
-        session=s.get('practice_session')
-        if session is None:raise ValueError('Start adaptive practice first.')
+        session=visible_practice(s)
+        if session is None:raise ValueError('Start adaptive practice for the current topic first.')
+        known_ids={attempt.question.question_id for attempt in session.attempts}
+        if session.current_question:known_ids.add(session.current_question.question_id)
+        if question_id and question_id not in known_ids:raise ValueError('This question belongs to an earlier activity. Refresh the current quiz.')
         s['_assessment_pending']=dict(kind='learning',request=dict(answer=answer,question_id=question_id));save_state(s)
         outcome=s['orchestrator'].learning_runtime.submit_practice_session_answer(s['student'],session,answer,question_id=question_id)
         s['practice_last_outcome']=outcome

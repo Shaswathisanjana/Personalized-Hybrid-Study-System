@@ -21,6 +21,7 @@ def route_payload(query):
         query = context["student_clarification"]
     fixtures = {
         "Teach me recursion": ("Recursion", ["learning"], "search"),
+        "Teach me arrays": ("Arrays", ["learning"], "search"),
         "Give me a coding problem on linked lists": ("linked lists", ["coding"], "search"),
         "Find research papers about agentic AI": ("agentic AI", ["research"], "search"),
         "Compare my uploaded research papers": ("Your research collection", ["research"], "collection"),

@@ -12,7 +12,7 @@ from app.cognitive.concept_identity import IDENTITY_VERSION
 
 
 UI_KEYS = frozenset((
-    "standalone_code_review",
+    "standalone_code_review", "practice_topic_sessions",
     "journey_clarification",
     "journey_workspace",
     "journey_topic", "journey_navigation", "_app_page",
@@ -117,6 +117,15 @@ def validate(data, student_id):
             or not isinstance(review.get("context"),str) or len(review["context"])>8000
             or review.get("status") not in {"draft","running","ready","error"}):
         raise ValueError("Invalid or cross-student standalone review.")
+    cache=data['ui'].get('practice_topic_sessions',{})
+    from app.learning_agent.practice_session import PracticeSession
+    from app.cognitive.concept_identity import concept_id
+    if not isinstance(cache,dict):raise ValueError('Invalid topic practice cache.')
+    for topic,entry in cache.items():
+        if (not isinstance(topic,str) or not isinstance(entry,dict) or set(entry)-{'session','feedback'}
+                or not isinstance(entry.get('session'),PracticeSession)
+                or concept_id(entry['session'].concept_name)!=topic):
+            raise ValueError('Invalid topic practice cache entry.')
     from app.orchestrator.study_workspace import validate_workspace
     validate_workspace({"student": data["student"], "journey_workspace": data["ui"].get("journey_workspace")})
     from app.cognitive.models import ConceptState
