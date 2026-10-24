@@ -7,7 +7,9 @@
     "app/persistence/state_codec.py",
     "requirements.txt",
     "app/research_agent/collection_service.py",
-    "app/research_agent/full_text_analysis.py"
+    "app/research_agent/full_text_analysis.py",
+    "app/coding_agent/evaluator.py",
+    "test_unified_query_refinement.py"
   ],
   "created_source_and_documentation_files": [
     "CODE_REVIEW_FIX_REPORT.md",
@@ -61,7 +63,10 @@
     "backend/practice_context.py",
     "backend/tests/test_learning_topic_quiz.py",
     "frontend/e2e/learning-quiz.spec.ts",
-    "LEARNING_QUIZ_TOPIC_FIX.md"
+    "LEARNING_QUIZ_TOPIC_FIX.md",
+    "backend/tests/test_coding_topics_submission.py",
+    "frontend/e2e/coding-workflow.spec.ts",
+    "CODING_TOPICS_SUBMISSION_REPORT.md"
   ],
   "latest_refinement": "CODE_REVIEW_FIX_REPORT.md",
   "generated_content_excluded": [

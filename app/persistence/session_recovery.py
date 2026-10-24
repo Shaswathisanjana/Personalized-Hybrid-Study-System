@@ -28,6 +28,7 @@ UI_KEYS = frozenset((
     "advanced_coding_editor", "advanced_coding_hint_history",
     "advanced_coding_free_topic", "advanced_coding_language", "advanced_coding_generation_attempts",
     "advanced_coding_generation_status", "advanced_coding_guided_result", "advanced_coding_guided_source",
+    "advanced_coding_topic_drafts", "advanced_coding_execution_preview", "advanced_coding_review_error",
     "advanced_coding_submission_record", "advanced_coding_submission_source",
     "advanced_coding_diagnostic_session", "advanced_coding_diagnostic_result",
     "advanced_coding_diagnostic_concept", "advanced_coding_review_outcome",

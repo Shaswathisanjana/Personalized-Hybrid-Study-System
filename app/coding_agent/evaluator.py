@@ -94,6 +94,8 @@ class CodingEvaluator:
             )
         )
 
+        self.last_execution_evidence = None
+
         # Syntax errors are objective.
         # There is no reason to run behavioral tests or ask
         # Gemini to judge correctness when code cannot parse.
@@ -122,6 +124,8 @@ class CodingEvaluator:
                 test_cases=test_cases,
             )
         )
+
+        self.last_execution_evidence = dict(syntax_valid=True, test_results=behavioral_result.tests, timed_out=behavioral_result.timed_out, execution_error=behavioral_result.execution_error)
 
         coding_test_results = [
             CodingTestResult(

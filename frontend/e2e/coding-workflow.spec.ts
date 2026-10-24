@@ -1,0 +1,24 @@
+import {test,expect} from '@playwright/test';
+import fs from 'node:fs';
+import {fileURLToPath} from 'node:url';
+const shots=fileURLToPath(new URL('../../data/web-e2e/screenshots/',import.meta.url));fs.mkdirSync(shots,{recursive:true});
+test('coding chooser, actual submission and review work in the student interface',async({page,request})=>{
+ const p=await (await request.post('/api/profiles',{data:{name:'Coding workflow fixture '+Date.now()}})).json();const base='/api/students/'+p.id;
+ await page.addInitScript(id=>localStorage.setItem('phss-profile',id),p.id);await page.goto('/');await expect(page.getByRole('status').filter({hasText:'Restoring your workspace'})).toHaveCount(0);
+ await page.getByLabel('What would you like help with today?').fill('Give me a coding problem on Arrays');await page.getByRole('button',{name:'Start',exact:true}).click();
+ await expect(page.locator('.monaco-editor')).toBeVisible({timeout:30000});
+ const chooser=page.locator('details').filter({has:page.locator('summary').filter({hasText:'Choose a coding topic'})}).first();
+ await expect(chooser).not.toHaveAttribute('open');
+ const s=await (await request.get(base)).json();const starter=s.exercise.task.starter_code;
+ const code=starter.includes('find_max(')?'def find_max(nums):\n    largest = nums[0]\n    for value in nums[1:]:\n        if value > largest:\n            largest = value\n    return largest\n':starter.includes('rotate_right(')?'def rotate_right(nums, k):\n    if not nums: return []\n    k %= len(nums)\n    return nums[-k:] + nums[:-k] if k else list(nums)\n':'def max_subarray_sum(nums):\n    best = current = nums[0]\n    for value in nums[1:]:\n        current = max(value, current + value)\n        best = max(best, current)\n    return best\n';
+ await page.getByRole('textbox',{name:'Editor content',exact:true}).focus();await page.keyboard.press('Control+A');await page.context().grantPermissions(['clipboard-read','clipboard-write']);await page.evaluate(value=>navigator.clipboard.writeText(value),code);await page.keyboard.press('Control+V');
+ await page.getByRole('button',{name:'Submit & evaluate',exact:true}).click();await expect(page.getByRole('heading',{name:'Submission feedback',exact:true})).toBeVisible({timeout:60000});
+ let result=await (await request.get(base)).json();expect(result.code).toBe(code);expect(result.coding_result.result.evaluation.test_results.every((t:any)=>t.passed)).toBeTruthy();expect(result.evidence.length).toBe(1);
+ await page.getByRole('button',{name:'Review & verify correction',exact:true}).click();await expect(page.getByRole('status').filter({hasText:'Reviewing and verifying correction'})).toHaveCount(0);
+ result=await (await request.get(base)).json();expect(result.review).toBeTruthy();expect(result.evidence.length).toBe(1);
+ const edited=code+'# saved when choosing another topic\n';await page.getByRole('textbox',{name:'Editor content',exact:true}).focus();await page.keyboard.press('Control+A');await page.evaluate(value=>navigator.clipboard.writeText(value),edited);await page.keyboard.press('Control+V');
+ await page.getByText('Choose a coding topic',{exact:true}).click();await page.getByLabel('Coding practice topic').selectOption('Strings');await page.getByRole('button',{name:'Start selected topic',exact:true}).click();
+ await expect(page.getByRole('status').filter({hasText:'Preparing selected coding topic'})).toHaveCount(0);result=await (await request.get(base)).json();expect(result.exercise.task.concept_name).toBe('Strings');expect(result.coding_saved_drafts.arrays.code).toBe(edited);expect(result.evidence.length).toBe(1);
+ await page.screenshot({path:shots+'/coding-topic-chooser.png',fullPage:true});
+ await page.reload();await page.getByRole('button',{name:'Study workspace',exact:true}).click();await expect(page.getByRole('button',{name:'Submit & evaluate',exact:true})).toBeVisible();await expect(page.locator('.coding-topic-chooser')).not.toHaveAttribute('open');
+});

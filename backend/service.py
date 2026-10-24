@@ -62,7 +62,7 @@ class Application:
         output=public(dict(student=student,plan=plan,clarification=s.get('journey_clarification'),lesson=lesson,
             exercise=s.get('advanced_coding_exercise'),code=s.get('advanced_coding_editor',''),
             hints=s.get('advanced_coding_hint_history',[]),coding_result=s.get('advanced_coding_submission_record'),
-            review=s.get('advanced_coding_guided_result'),code_review=s.get('standalone_code_review'),practice=session,feedback=s.get('practice_last_outcome') if session else None,
+            review=s.get('advanced_coding_guided_result'),coding_execution=s.get('advanced_coding_execution_preview'),coding_review_error=s.get('advanced_coding_review_error'),coding_saved_drafts=s.get('advanced_coding_topic_drafts',{}),code_review=s.get('standalone_code_review'),practice=session,feedback=s.get('practice_last_outcome') if session else None,
             research_question=s.get('research_assessment_question'),research_feedback=s.get('research_assessment_feedback'),
             diagnostic=s.get('learning_diagnostic_session'),diagnostic_outcome=s.get('learning_diagnostic_outcome'),
             conflicts=engine.active_conflicts,evidence=engine.evidence_store.get_all_evidence(),
@@ -126,17 +126,34 @@ class Application:
         action=observe_action(workflow,topic)
         curated=StudentJourneyService.coding_concept(topic)
         exercise=(get_verified_exercise(curated,action.difficulty) if curated else OpenTopicGenerator(max_attempts=2).generate(topic,action.difficulty,'Python'))
+        previous=s.get('advanced_coding_exercise')
+        previous_code=s.get('advanced_coding_editor','')
+        if previous and previous_code.strip() and previous_code!=previous.task.starter_code:
+            from app.cognitive.concept_identity import concept_id
+            s.setdefault('advanced_coding_topic_drafts',{})[concept_id(previous.task.concept_name)]=dict(topic=previous.task.concept_name,title=previous.task.title,code=previous_code)
         s.update(advanced_coding_exercise=exercise,advanced_coding_loaded_concept=topic,
             advanced_coding_editor=exercise.task.starter_code,advanced_coding_hint_history=[],
             advanced_coding_hint_engine=MisconceptionAwareHintCoordinator(),
             advanced_coding_controller=CodingSubmissionController(workflow,exercise))
-        for key in ('advanced_coding_submission_record','advanced_coding_submission_source','advanced_coding_guided_result'):
+        for key in ('advanced_coding_submission_record','advanced_coding_submission_source','advanced_coding_guided_result','advanced_coding_execution_preview','advanced_coding_review_error'):
             s.pop(key,None)
     def code_submit(self,s,code):
         controller=s.get('advanced_coding_controller')
         if controller is None:raise ValueError('Prepare a coding exercise first.')
+        if not isinstance(code,str) or not code.strip():raise ValueError('Please write Python code before submitting.')
+        s['advanced_coding_editor']=code
+        if code!=s.get('advanced_coding_submission_source'):
+            for key in ('advanced_coding_submission_record','advanced_coding_guided_result','advanced_coding_review_error','advanced_coding_execution_preview'):s.pop(key,None)
         s['_assessment_pending']=dict(kind='coding',request={'code':code});save_state(s)
-        record,_=controller.submit(code)
+        try:record,_=controller.submit(code)
+        except Exception:
+            evaluator=controller.workflow.evaluator
+            execution=getattr(evaluator,'last_execution_evidence',None) if evaluator else None
+            if execution:
+                s['advanced_coding_execution_preview']=dict(code=code,execution=execution,message='Local test results only. The full assessment did not finish; use Resume interrupted assessment to retry. These test results are not an additional mastery update.')
+            save_state(s)
+            raise
+        s.pop('advanced_coding_execution_preview',None)
         s.update(advanced_coding_submission_record=record,advanced_coding_submission_source=code,advanced_coding_editor=code)
         s.pop('_assessment_pending',None);save_state(s)
     def hint(self,s,code):
@@ -150,9 +167,15 @@ class Application:
         from app.coding_agent.guided_review_coordinator import GuidedCodeReviewCoordinator
         if not s.get('advanced_coding_submission_record'):raise ValueError('Submit original code first.')
         exercise=s['advanced_coding_exercise']
-        result=GuidedCodeReviewCoordinator().review_submission(code=s['advanced_coding_submission_source'],
-            problem_description=exercise.task.description,concept_name=exercise.task.concept_name,test_cases=exercise.test_cases)
-        s['advanced_coding_guided_result']=result;save_state(s)
+        try:
+            result=GuidedCodeReviewCoordinator().review_submission(code=s['advanced_coding_submission_source'],
+                problem_description=exercise.task.description,concept_name=exercise.task.concept_name,test_cases=exercise.test_cases)
+            s['advanced_coding_guided_result']=result
+            s.pop('advanced_coding_review_error',None)
+        except Exception:
+            s['advanced_coding_review_error']='AI review could not finish. Your submitted code and evaluated results are saved. Retry Review & verify correction later.'
+        save_state(s)
+
     def open_code_review(self,s,code=None,context=''):
         from app.coding_agent.review_request import extract_review_code
         from app.coding_agent.code_review_engine import CodeReviewEngine

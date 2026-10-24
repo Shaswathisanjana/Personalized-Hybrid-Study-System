@@ -20,6 +20,8 @@ def route_payload(query):
         context = json.loads(query.split("\n", 1)[1])
         query = context["student_clarification"]
     fixtures = {
+        "Give me a coding problem on Arrays": ("Arrays", ["coding"], "search"),
+        "Give me a coding problem on Strings": ("Strings", ["coding"], "search"),
         "Teach me recursion": ("Recursion", ["learning"], "search"),
         "Teach me arrays": ("Arrays", ["learning"], "search"),
         "Give me a coding problem on linked lists": ("linked lists", ["coding"], "search"),

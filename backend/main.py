@@ -83,6 +83,10 @@ def create_app(application=None):
         finally:service.lock.release()
     @api.get('/api/health')
     def health():return dict(status='ok',provider_configured=bool(os.getenv('GEMINI_API_KEY')),mode='local profiles; no authentication')
+    @api.get('/api/coding/topics')
+    def coding_topics():
+        from app.coding_agent.verified_exercises import VERIFIED_CONCEPTS
+        return list(VERIFIED_CONCEPTS)
     @api.get('/api/topics')
     def topics():
         from app.learning_agent.topic_bank import LearningTopicBank
