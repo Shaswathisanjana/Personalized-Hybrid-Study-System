@@ -1,4 +1,5 @@
-﻿from urllib.parse import urlsplit, urlunsplit
+from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import urlsplit, urlunsplit
 
 
 class MultiSourceResourceRetriever:
@@ -49,21 +50,21 @@ class MultiSourceResourceRetriever:
         failures = []
         successful_sources = 0
 
-        for retriever in self.retrievers:
+        def retrieve(retriever):
             try:
-                candidates = retriever.search(
-                    concept_name=concept_name,
-                    max_results=max_results,
-                    target_level=target_level,
-                )
-
-                successful_sources += 1
-                source_results.append(list(candidates))
-
+                return list(retriever.search(concept_name=concept_name,
+                    max_results=max_results,target_level=target_level)), None
             except Exception as exc:
-                failures.append(
-                    f"{type(retriever).__name__}: {exc}"
-                )
+                return [], f'{type(retriever).__name__}: {exc}'
+
+        # Independent read-only sources run together. map retains input order,
+        # so the existing deterministic round-robin ranking is unchanged.
+        with ThreadPoolExecutor(max_workers=min(4,len(self.retrievers))) as pool:
+            for candidates,error in pool.map(retrieve,self.retrievers):
+                if error is not None:failures.append(error)
+                else:
+                    successful_sources += 1
+                    source_results.append(candidates)
 
         if successful_sources == 0:
             raise RuntimeError(

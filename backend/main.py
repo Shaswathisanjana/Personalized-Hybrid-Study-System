@@ -2,6 +2,7 @@
 from pathlib import Path
 from contextlib import contextmanager
 import logging, os, json
+from time import perf_counter
 from dataclasses import asdict
 from typing import Annotated
 from dotenv import load_dotenv
@@ -59,6 +60,12 @@ def create_app(application=None):
     api=FastAPI(title='PHSS Web API',version='1.0.0')
     service=application or Application()
     api.state.service=service
+    @api.middleware('http')
+    async def server_timing(request,call_next):
+        started=perf_counter()
+        response=await call_next(request)
+        response.headers['Server-Timing']=f'app;dur={(perf_counter()-started)*1000:.1f}'
+        return response
     api.add_middleware(CORSMiddleware,allow_origins=['http://127.0.0.1:5173','http://localhost:5173'],allow_methods=['GET','POST','PUT'],allow_headers=['Content-Type','X-Revision'])
     api.add_middleware(TrustedHostMiddleware,allowed_hosts=['127.0.0.1','localhost','testserver'])
     api.add_middleware(BodyLimit)

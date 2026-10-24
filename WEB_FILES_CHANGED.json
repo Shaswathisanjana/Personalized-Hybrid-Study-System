@@ -9,7 +9,8 @@
     "app/research_agent/collection_service.py",
     "app/research_agent/full_text_analysis.py",
     "app/coding_agent/evaluator.py",
-    "test_unified_query_refinement.py"
+    "test_unified_query_refinement.py",
+    "app/learning_agent/resources/multi_source_retriever.py"
   ],
   "created_source_and_documentation_files": [
     "CODE_REVIEW_FIX_REPORT.md",
@@ -66,7 +67,11 @@
     "LEARNING_QUIZ_TOPIC_FIX.md",
     "backend/tests/test_coding_topics_submission.py",
     "frontend/e2e/coding-workflow.spec.ts",
-    "CODING_TOPICS_SUBMISSION_REPORT.md"
+    "CODING_TOPICS_SUBMISSION_REPORT.md",
+    "frontend/src/components/LoadingStatus.tsx",
+    "backend/tests/test_loading_performance.py",
+    "frontend/e2e/loading.spec.ts",
+    "WEB_LOADING_PERFORMANCE_REPORT.md"
   ],
   "latest_refinement": "CODE_REVIEW_FIX_REPORT.md",
   "generated_content_excluded": [
