@@ -71,7 +71,9 @@
     "frontend/src/components/LoadingStatus.tsx",
     "backend/tests/test_loading_performance.py",
     "frontend/e2e/loading.spec.ts",
-    "WEB_LOADING_PERFORMANCE_REPORT.md"
+    "WEB_LOADING_PERFORMANCE_REPORT.md",
+    "frontend/e2e/agent-buttons.spec.ts",
+    "AGENT_BUTTONS_REPORT.md"
   ],
   "latest_refinement": "CODE_REVIEW_FIX_REPORT.md",
   "generated_content_excluded": [
