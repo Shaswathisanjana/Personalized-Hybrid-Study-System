@@ -16,5 +16,8 @@ def annotate_plan(plan,attempts):
         key=lesson_key(step);record=latest.get(key) or by_concept.get(key.partition(':')[2])
         states[key]={'attempted':bool(record),'passed':bool(record and record.get('passed')),'score':record.get('score') if record else None}
     completed=sum(1 for s in states.values() if s['passed']);total=len(states)
-    result['quizProgress']={'lessons':states,'completed':completed,'total':total,'percentage':round(completed*100/total) if total else 0}
+    attempted=sum(1 for state in states.values() if state['attempted'])
+    result['quizProgress']={'lessons':states,'completed':completed,'attempted':attempted,'total':total,
+        'attemptPercentage':round(attempted*100/total) if total else 0,
+        'percentage':round(completed*100/total) if total else 0}
     return result

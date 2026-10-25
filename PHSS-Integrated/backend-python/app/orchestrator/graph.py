@@ -39,7 +39,7 @@ def execute(state):
                 out = {'agent':agent,'success':True,'message':'Your learning roadmap is ready.',
                        'plan':plan.get('existing_plan') or plan}
             elif agent == 'research':
-                research = search_papers(state['user_id'],topic,5,full_analysis=True)
+                research = search_papers(state['user_id'],topic,None,full_analysis=True)
                 out = {'agent':agent,'success':True,'research':research,'message':'Research report ready.'}
             else:
                 from app.agents.coding.review_service import review_submission

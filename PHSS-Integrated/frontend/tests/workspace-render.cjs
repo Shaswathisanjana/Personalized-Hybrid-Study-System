@@ -12,6 +12,7 @@ async function render(tab,mode,result){
  .replace("useState<User | null>(null)","useState<User | null>({userId:'test',name:'Student',email:'test@example.com'})")
  .replace("useState<Tab>('assistant')","useState<Tab>('"+tab+"')")
  .replace("useState<'review'|'practice'>('review')","useState<'review'|'practice'>('"+mode+"')")
+ .replace("const [journeys, setJourneys] = useState<any[]>([])","const [journeys, setJourneys] = useState<any[]>([{id:'python',topic_title:'Python',plan:{steps:[{order:1,concept:'Variables'},{order:2,concept:'Loops'}],quizProgress:{total:2,attempted:1,completed:0,percentage:0,lessons:{'1:Variables':{attempted:true,passed:false,score:0.5}}}}}])")
  .replace("const [result, setResult] = useState<any>(null)","const [result, setResult] = useState<any>("+JSON.stringify(result)+")");
  return {contents:source,loader:'tsx',resolveDir:path.dirname(args.path)};
  });}}]});
@@ -33,6 +34,11 @@ async function render(tab,mode,result){
  assert.ok(!lesson.includes('WELCOME BACK'));
  const home=await render('assistant','review',null);
  assert.ok(home.includes('My courses'));
+ assert.ok(home.includes('Quizzes completed'));
+ assert.ok(home.includes('1/2 module quizzes completed'));
+ assert.ok(home.includes('50% · Needs revision'));
+ assert.ok(home.includes('Not taken'));
+
  assert.ok(!home.includes('Explore learning topics'));
  const quizPage=await render('learning','review',{plan:{topic:'Trees',currentLevel:'advanced',steps:[{order:1,concept:'Traversals',title:'Tree guide',url:'https://example.com/trees'}],quizProgress:{lessons:{'1:Traversals':{attempted:true,passed:true}}}}});
  assert.match(quizPage,/<button[^>]*class="quiz-action"[^>]*>Retake lesson quiz/);
@@ -40,5 +46,10 @@ async function render(tab,mode,result){
  assert.ok(!quizButton.includes('disabled'));
  assert.ok(quizPage.includes('Learning level (optional)'));
  assert.ok(!home.includes('class="agent-grid"'));
+ const research=await render('research','review',{research:{review_mode:'evolution',topic:'LDA',papers:[{source_id:'S1',title:'Survey',url:'https://example.com'}],coverage:{analyzed:1,survey_papers:1,full_text_available:1},research_progression:{timeline:[{title:'A research milestone',description:'Evidence-backed progression',source_ids:['S1']}],learning_concepts:['Topic modeling']}}});
+ assert.ok(research.includes('A research milestone'));
+ assert.ok(research.includes('Learn Topic modeling'));
+ assert.ok(!research.includes('Number of papers to analyze'));
+ assert.ok(!research.includes('Paper-wise comparison'));
  console.log('Workspace rendering: code review, interview, direct roadmap and enrolled course home passed.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

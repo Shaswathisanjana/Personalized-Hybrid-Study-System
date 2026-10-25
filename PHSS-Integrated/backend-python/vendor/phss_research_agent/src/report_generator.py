@@ -431,6 +431,9 @@ Paper records:
                     continue
                 try:
                     key = int(item.get("paper_index"))
+                    original=next((p for i,p in enumerate(paper_analyses,1) if int(p.get("paper_index",i))==key),None)
+                    if original is None or str(item.get("title","")).strip()!=str(original.get("title","")).strip():
+                        continue
                 except (TypeError, ValueError):
                     continue
                 steps = item.get("steps", [])
@@ -645,7 +648,7 @@ class WordResearchReportGenerator:
                     run.font.name = "Arial"
                     run.font.size = Pt(8)
 
-        for paper in paper_analyses:
+        for row_number,paper in enumerate(paper_analyses,1):
             paper_title = _safe(
                 paper.get("title"),
                 "Untitled",
@@ -655,7 +658,7 @@ class WordResearchReportGenerator:
             citation = (
                 f"{paper_title}\n"
                 f"({year})\n"
-                f"[{paper.get('paper_index', '?')}]"
+                f"[{paper.get('source_id') or row_number}]"
             )
 
             def _table_value(key: str, fallback_key: str | None = None) -> str:
@@ -872,7 +875,7 @@ class WordResearchReportGenerator:
             )
 
             document.add_paragraph(
-                f"[{index}] {authors} "
+                f"[{paper.get('source_id') or index}] {authors} "
                 f"({_safe(paper.get('year'), 'n.d.')}). "
                 f"{_safe(paper.get('title'), 'Untitled')}. "
                 f"arXiv. {paper.get('url') or 'URL not available'}"

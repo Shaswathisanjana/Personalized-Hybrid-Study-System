@@ -39,7 +39,7 @@ class LearningRequest(BaseRequest):
 
 class ResearchRequest(BaseRequest):
     topic: str = Field(min_length=1, max_length=300)
-    count: int = Field(default=5, ge=1, le=10)
+    count: int | None = Field(default=None, ge=1, le=10)
     full_analysis: bool = Field(default=True)
 
 class CodingRequest(BaseRequest):

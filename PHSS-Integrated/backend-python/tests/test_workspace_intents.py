@@ -17,7 +17,13 @@ class IntentTests(unittest.TestCase):
             ("practice Google medium array problems","coding"),
             ("teach me interview communication skills","learning"),
             ("I want to study history","learning"),
-            ("find research papers on reinforcement learning",None),
+            ("find research papers on reinforcement learning","research"),
+            ("research on agentic and multi agent","research"),
+            ("research on PCB defect detecton","research"),
+            ("research on agentic learning","research"),
+            ("find latest papers about machine learning","research"),
+            ("teach me machine learning","learning"),
+            ("explain multi agent research methods",None),
             ("debug this Python code",None),
         ]:
             with self.subTest(message=message):

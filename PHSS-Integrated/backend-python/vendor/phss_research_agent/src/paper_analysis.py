@@ -22,6 +22,7 @@ except ImportError:
 
 from .config import GROQ_MODEL, EMBEDDING_MODEL
 from .embeddings import get_embedding_model
+from .provenance import source_key, supporting_quote_present
 
 load_dotenv()
 
@@ -317,21 +318,8 @@ class PaperAnalyzer:
 
     def __init__(self):
 
-        key = os.getenv("GROQ_API_KEY")
-
-        self.client = (
-
-            Groq(api_key=key)
-
-            if key and Groq is not None
-
-            else None
-
-        )
-
-        if key and Groq is None:
-
-            print("Groq SDK unavailable. Install it with: pip install groq")
+        # Use the same configured provider bridge as the rest of PHSS.
+        self.client = True
 
         self.embedder = None
 
@@ -741,7 +729,10 @@ class PaperAnalyzer:
 
             record = {
 
+                "provenance_version":2,
                 "paper_index": index,
+                "source_id": paper.get("source_id"),
+                "source_key": source_key(paper.get("url") or paper.get("pdf_url")),
 
                 "title": paper.get("title") or "Untitled",
 
@@ -831,6 +822,8 @@ class PaperAnalyzer:
                     if parsed:
                         for field in FIELD_CONFIG:
                             value = _as_text(parsed.get(field))
+                            if not supporting_quote_present(parsed,field,abstract_retrieved.get(field,[])):
+                                value = MISSING
                             if _is_noisy_summary(value):
                                 value = MISSING
                             record[field] = value
@@ -859,6 +852,8 @@ class PaperAnalyzer:
                     for field in FIELD_CONFIG:
 
                         value = _as_text(parsed.get(field))
+                        if not supporting_quote_present(parsed,field,retrieved.get(field,[])):
+                            value = MISSING
 
                         if _is_noisy_summary(value):
 
@@ -987,95 +982,17 @@ Retrieved source evidence:
 """
 
     def _ask_groq(self, prompt: str):
-
-        """Generate evidence-grounded paper analysis using Groq."""
-
-        if not self.client:
-
+        from app.orchestrator.intelligence import generate, safe_error
+        try:
+            return generate("Analyze ONLY the one paper supplied below. Do not attribute cited prior work to this paper. Return a JSON object with the requested fields PLUS supporting_quotes: an object mapping each field to a list of brief verbatim quotes from that field's supplied evidence. Do not invent quotes. If no quote supports a field, mark it as not reported.\n"+prompt)
+        except Exception as exc:
+            print("Paper analysis could not produce a supported summary: "+safe_error("analysis",exc))
             return None
-
-        for attempt in range(3):
-
-            try:
-
-                response = self.client.chat.completions.create(
-
-                    model=GROQ_MODEL,
-
-                    messages=[
-
-                        {
-
-                            "role": "system",
-
-                            "content": (
-
-                                "You are a research paper analysis assistant. "
-
-                                "Use only supplied evidence. Do not invent facts, "
-
-                                "metrics, datasets, or limitations. Return valid "
-
-                                "JSON only."
-
-                            ),
-
-                        },
-
-                        {"role": "user", "content": prompt},
-
-                    ],
-
-                    temperature=0.1,
-
-                    max_tokens=2500,
-
-                )
-
-                response_text = response.choices[0].message.content or ""
-
-                parsed = json.loads(_clean_json_response(response_text))
-
-                if isinstance(parsed, dict):
-
-                    return parsed
-
-                raise ValueError("Groq response was not a JSON object")
-
-            except Exception as exc:
-
-                print(f"Paper analysis attempt {attempt + 1} failed: {exc}")
-
-                if attempt < 2:
-
-                    time.sleep(2 * (attempt + 1))
-
-        return None
 
     @staticmethod
     def _fallback_fields(record, retrieved):
-        """Use relevant source excerpts when Groq synthesis fails."""
+        """Keep source excerpts in retrieved_evidence, never label them as summaries."""
         for field in FIELD_CONFIG:
-            usable = []
-            for chunk in retrieved.get(field, []):
-                text = re.sub(r"\s+", " ", chunk.get("text", "")).strip()
-                if not text or _is_reference_material(text, chunk.get("heading", "")):
-                    continue
-                if _is_noisy_summary(text):
-                    continue
-                if len(re.findall(r"[A-Za-z]{3,}", text)) < 8:
-                    continue
-                sentences = re.split(r"(?<=[.!?])\s+", text)
-                excerpt = " ".join(sentences[:2]).strip()
-                if len(excerpt) < 45:
-                    excerpt = text[:520].rsplit(" ", 1)[0]
-                usable.append(excerpt[:520].rstrip())
-            unique, seen = [], set()
-            for excerpt in usable:
-                key = re.sub(r"\W+", " ", excerpt.lower()).strip()
-                if key and key not in seen:
-                    seen.add(key)
-                    unique.append(excerpt)
-            record[field] = " ".join(unique[:2]) if unique else MISSING
+            record[field] = MISSING
         record["potential_gap_from_evidence"] = MISSING
-
+        record["analysis_status"] = "summary_unavailable"

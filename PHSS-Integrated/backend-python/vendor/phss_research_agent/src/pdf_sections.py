@@ -91,6 +91,8 @@ class PDFSectionExtractor:
         try:
             with cache_path.open("r", encoding="utf-8") as handle:
                 cached = json.load(handle)
+            if cached.get("provenance_version") != 2:
+                return None
             if cached.get("pdf_url") != paper.get("pdf_url"):
                 return None
             full_text = cached.get("full_text")
@@ -99,6 +101,8 @@ class PDFSectionExtractor:
                 return None
             if not isinstance(sections, dict):
                 return None
+            from .provenance import validate_pdf_identity
+            validate_pdf_identity(paper,full_text)
             return {"full_text": full_text, "sections": sections}
         except (OSError, ValueError, TypeError):
             return None
@@ -109,6 +113,7 @@ class PDFSectionExtractor:
         if cache_path is None:
             return
         payload = {
+            "provenance_version":2,
             "pdf_url": paper.get("pdf_url"),
             "full_text": full_text,
             "sections": sections,
@@ -142,6 +147,8 @@ class PDFSectionExtractor:
                     full_text, pages = _extract_pdf_text(pdf_path)
                     if len(full_text.strip()) < 500:
                         raise RuntimeError("PDF text is too short; it may be scanned or extraction failed")
+                    from .provenance import validate_pdf_identity
+                    validate_pdf_identity(paper,full_text)
                     sections = self._detect_sections(full_text, pages)
                     if self.client and (not sections["methodology"] or not sections["results"] or not sections["limitations"]):
                         sections = self._llm_classify_ambiguous_sections(sections)

@@ -1,3 +1,5 @@
+import { isResearchRequest } from './routingIntent';
+import { ResearchProgression } from './ResearchProgression';
 import { CourseDashboard } from './CourseDashboard';
 import { requestWord, saveDownload } from './reportDownload';
 import { LessonChoice, VideoProgressSummary } from './RecommendedLesson';
@@ -65,6 +67,7 @@ export default function App() {
     const submitted=String((body as any).message||'');
     if(path==='/api/ai/orchestrate'){
       if(/```|\b(?:print|input)\s*\(|(?:^|\n)\s*(?:def |class |import |from |for |while |if |[a-zA-Z_]\w*\s*=)/.test(submitted)){setTab('coding');setCodingView('review');}
+      else if(isResearchRequest(submitted))setTab('research');
       else if(/\b(practice|practise|questions?|problems?|interview)\b/i.test(submitted)&&/\b(amazon|google|microsoft|leetcode|coding|dsa|meta|infosys|tcs)\b/i.test(submitted)){setTab('coding');setCodingView('practice');setCodingRequest(submitted);}
       else if(/\b(learn|teach|study|roadmap|understand|trees)\b/i.test(submitted))setTab('learning');
     }
@@ -76,7 +79,10 @@ export default function App() {
       if(path==='/api/ai/orchestrate' && first && ['learning','coding','research'].includes(first.agent)){
         setTab(first.agent);
         requestAnimationFrame(()=>document.querySelector('.work-card:not(.home-search)')?.scrollIntoView({behavior:'smooth',block:'start'}));
-        if(first.success===false)setError(first.message||'The requested workspace could not generate a result. Please try again.');
+        if(first.success===false){
+          setError(first.message||'The requested workspace could not generate a result. Please try again.');
+          if(first.agent==='research'){setResult(null);setTopic(routed.topic||submitted);return;}
+        }
         if(first.agent==='coding'){
           setCodingView(first.practice_request?'practice':'review');
           if(first.practice_request)setCodingRequest(first.practice_request);
@@ -117,6 +123,7 @@ export default function App() {
     }
   }
 
+  useEffect(()=>{const learn=(e:Event)=>{const concept=String((e as CustomEvent).detail||'').slice(0,200);if(concept)handoff('learning','Explain '+concept+' from my research review',concept);};window.addEventListener('phss:research-learn',learn);return()=>window.removeEventListener('phss:research-learn',learn);},[tab,topic,result,handoffContext]);
   async function logout() { try { await api('/api/auth/logout',{method:'POST'}); } finally { setUser(null); setJourneys([]); setCoursesError(''); setResult(null); setTab('assistant'); } }
   if (!user) return <main className="auth-shell"><section className="auth-brand"><div className="brand-mark"><GraduationCap size={28}/></div><p className="eyebrow">PERSONALIZED HYBRID STUDY SYSTEM</p><h1>Learn with a system that adapts to you.</h1><p className="muted big">One study space for learning, coding practice, and evidence-led research.</p><div className="auth-points"><span><BookOpen size={17}/> Personalized learning paths</span><span><Code2 size={17}/> Coding practice and feedback</span><span><Search size={17}/> Research-paper discovery</span></div></section><section className="auth-card"><p className="eyebrow">YOUR STUDY WORKSPACE</p><h2>{authMode==='login'?'Welcome back':authMode==='register'?'Create your account':'Reset your password'}</h2><p className="muted">{authMode==='login'?'Sign in to continue your progress.':authMode==='register'?'Create an account to start your learning journey.':'We will email a reset link if the account exists.'}</p><form onSubmit={submitAuth} className="stack">{authMode==='register'&&<label>Full name<input required minLength={2} value={authForm.name} onChange={e=>updateAuth('name',e.target.value)} autoComplete="name"/></label>}<label>Email address<input required type="email" value={authForm.email} onChange={e=>updateAuth('email',e.target.value)} autoComplete="email"/></label>{authMode!=='forgot'&&<label>Password<input required type="password" minLength={authMode==='register'?12:1} value={authForm.password} onChange={e=>updateAuth('password',e.target.value)} autoComplete={authMode==='register'?'new-password':'current-password'}/>{authMode==='register'&&<small>Use at least 12 characters.</small>}</label>}<button className="primary" disabled={busy}>{busy?<LoaderCircle className="spin" size={17}/>:null}{authMode==='login'?'Sign in':authMode==='register'?'Create account':'Send reset link'}</button></form>{error&&<p className="message error">{error}</p>}{notice&&<p className="message success">{notice}</p>}<div className="auth-links">{authMode==='login'?<><button className="text-button" onClick={()=>setAuthMode('register')}>Create an account</button><button className="text-button" onClick={()=>setAuthMode('forgot')}>Forgot password?</button></>:<button className="text-button" onClick={()=>{setAuthMode('login');setError('');setNotice('')}}>Back to sign in</button>}</div><p className="fine-print"><ShieldCheck size={14}/> Your account and study progress are protected.</p><p className="fine-print">Use your registered email to verify your account or reset your password.</p></section></main>;
   return (
@@ -140,7 +147,7 @@ export default function App() {
         {tab==='assistant'&&<section className="home-search work-card"><p className="eyebrow">STUDY ASSISTANT</p><h2>What would you like to work on?</h2>{tab==='assistant'&&<form className="stack" onSubmit={(e: FormEvent)=>{e.preventDefault();runAgent('/api/ai/orchestrate',{message,mode:'auto',context:{}})}}><label>What would you like help with?<textarea rows={3} placeholder="Ask a question, explore a topic, or paste your code…" spellCheck={false} style={{fontFamily:/```|\b(?:def|print|input)\s*\(/.test(message)?"monospace":"inherit",whiteSpace:"pre-wrap",tabSize:4}} value={message} onChange={e=>setMessage(e.target.value)}/></label><label className="optional-level">Learning level (optional)<select value={level} onChange={e=>setLevel(e.target.value)}><option value="">Automatic</option><option value="beginner">Beginner</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option></select></label><button className="primary" disabled={busy||!message.trim()}>{busy?<LoaderCircle className="spin" size={17}/>:<Send size={17}/>} Ask PHSS</button></form>}</section>}
 
         {tab==='assistant'&&<CourseDashboard courses={journeys} loading={coursesLoading} error={coursesError} onExplore={()=>{}} onResume={c=>{setTab('learning');setTopic(c.topic_title);setResult({plan:c.plan});}}/>}
-        {tab!=='assistant'&&!result&&!busy&&<section className="cross-agent-bar"><form onSubmit={(e:FormEvent)=>{e.preventDefault();setTab('assistant');runAgent('/api/ai/orchestrate',{message,mode:'auto',context:{...handoffContext,from:tab,topic,previous_result:JSON.stringify(result).slice(0,14000)}})}}><label>Ask a follow-up<textarea rows={3} spellCheck={false} required maxLength={2000} value={message} onChange={e=>setMessage(e.target.value)} placeholder="Ask a doubt or paste code here; keep its line breaks and indentation."/></label><button className="primary" disabled={busy}>Ask PHSS →</button></form><div className="handoff-actions"><button className="text-button" disabled={busy} onClick={()=>handoff('learning','Explain '+topic+' in the context of my current work',topic)}>Learn this topic</button><button className="text-button" disabled={busy} onClick={()=>handoff('coding','Help me implement '+topic,topic)}>Code this topic</button></div></section>}
+        {tab!=='assistant'&&!result&&!busy&&!(tab==='research'&&error)&&<section className="cross-agent-bar"><form onSubmit={(e:FormEvent)=>{e.preventDefault();setTab('assistant');runAgent('/api/ai/orchestrate',{message,mode:'auto',context:{...handoffContext,from:tab,topic,previous_result:JSON.stringify(result).slice(0,14000)}})}}><label>Ask a follow-up<textarea rows={3} spellCheck={false} required maxLength={2000} value={message} onChange={e=>setMessage(e.target.value)} placeholder="Ask a doubt or paste code here; keep its line breaks and indentation."/></label><button className="primary" disabled={busy}>Ask PHSS →</button></form><div className="handoff-actions"><button className="text-button" disabled={busy} onClick={()=>handoff('learning','Explain '+topic+' in the context of my current work',topic)}>Learn this topic</button><button className="text-button" disabled={busy} onClick={()=>handoff('coding','Help me implement '+topic,topic)}>Code this topic</button></div></section>}
 
 
         {(tab!=='assistant'||result||error||existingRoadmapPrompt)&&<section className="work-card">
@@ -304,48 +311,11 @@ export default function App() {
                   </div>
                 </div>
               )}
-              {tab==='research'&&(
-                <form className="stack" onSubmit={async(e: FormEvent)=>{
-                  e.preventDefault();
-                  if (!topic.trim()) return;
-                  setBusy(true); setError('');
-                  try {
-                    const r = await api('/api/research/jobs', { method: 'POST', body: JSON.stringify({ topic, count }) });
-                    setResult({ researchJob: r.jobId, topic, count, phase: 'starting' });
-                  } catch (err: any) {
-                    setError(err.message);
-                  } finally {
-                    setBusy(false);
-                  }
-                }}>
-                  <label>
-                    Research topic
-                    <input value={topic} onChange={e=>setTopic(e.target.value)} required maxLength={300} placeholder="Example: PCB defect detection using deep learning"/>
-                  </label>
-                  <label>
-                    Number of papers to analyze
-                    <select value={count} onChange={e=>setCount(Number(e.target.value))}>
-                      <option value={3}>3 papers</option>
-                      <option value={5}>5 papers (Recommended)</option>
-                      <option value={10}>10 papers (Comprehensive)</option>
-                    </select>
-                  </label>
-                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '8px' }}>
-                    <button className="primary" disabled={busy || !topic.trim()} type="submit">
-                      {busy ? <LoaderCircle className="spin" size={17}/> : <Search size={17}/>} Start Full Literature Review (PHSS Research Agent)
-                    </button>
-                    <button type="button" className="secondary" disabled={busy || !topic.trim()} onClick={()=>runAgent('/api/ai/research/search', { topic, count })}>
-                      Fast Search & Relevance Ranking
-                    </button>
-                    <a href="/research/" target="_blank" rel="noreferrer" className="secondary link-button" style={{ padding: '12px 16px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                      Open Dedicated Research Workspace <ArrowUpRight size={15}/>
-                    </a>
-                  </div>
-                  <p className="fine-print">
-                    Your report brings together paper comparisons, limitations, candidate research gaps, and a downloadable Word document.
-                  </p>
-                </form>
-              )}
+              {tab==='research'&&!result&&<form className="stack" onSubmit={(e:FormEvent)=>{e.preventDefault();runAgent('/api/ai/research/search',{topic,count:null});}}>
+                <label>Research topic<input required maxLength={300} value={topic} onChange={e=>setTopic(e.target.value)} placeholder="For example: Amazon review classification using LDA"/></label>
+                <p className="muted">The agent selects relevant primary and survey papers within a bounded search budget, then reviews research progression, current findings, gaps and future work.</p>
+                <button className="primary" disabled={busy||!topic.trim()}>{busy?'Reviewing the evidence…':'Review research progression'}</button>
+              </form>}
               {tab==='coding'&&<div className="coding-mode-tabs" role="group" aria-label="Coding task"><button className={codingView==='review'?'primary':'secondary'} onClick={()=>setCodingView('review')}>Code review</button><button className={codingView==='practice'?'primary':'secondary'} onClick={()=>setCodingView('practice')}>Interview practice</button></div>}
               {tab==='coding'&&codingView==='review'&&!result&&!busy&&<p>Paste your code in the search box above and choose Ask PHSS to review it.</p>}
               {tab==='coding'&&codingView==='practice'&&<div className="coding-launch"><iframe title="Interview preparation and coding practice" src={'/coding/?topic='+encodeURIComponent(codingRequest||topic)} style={{width:'100%',height:'75vh',border:0,borderRadius:12}}/><div className="coding-preview"><Code2 size={36}/><div><strong>Interview practice</strong><p className="muted">Choose a problem, run your solution, and review your saved attempts.</p></div></div><a className="primary link-button" href={'/coding/?topic='+encodeURIComponent(codingRequest||topic)} target="_blank" rel="noreferrer">Open coding workspace <ArrowUpRight size={17}/></a><p className="fine-print">Your practice history helps you find topics to review.</p></div>}
@@ -426,6 +396,7 @@ function LearningPlanView({ plan, onSwitchWorkspace }: { plan: any; onSwitchWork
           lesson_key: String(activeQuizStep.order||'')+':'+String(activeQuizStep.concept||activeQuizStep.title).slice(0,140),
         }),
       });
+      if(res.evaluation.progressWarning)setQuizError(res.evaluation.progressWarning);
       setQuizResult(res.evaluation); setLessonAssessments(v=>({...v,[String(activeQuizStep.order||'')+':'+String(activeQuizStep.concept||activeQuizStep.title).slice(0,140)]:{attempted:true,passed:!!res.evaluation.passed,score:res.evaluation.score}})); window.dispatchEvent(new Event('phss:evidence')); window.dispatchEvent(new Event('phss:learning-progress'));
     } catch (e: any) {
       setQuizError(e.message || 'Error submitting quiz.');
@@ -459,6 +430,7 @@ function LearningPlanView({ plan, onSwitchWorkspace }: { plan: any; onSwitchWork
         <span className="result-count">{steps.length} learning modules</span>
       </div>
 
+      <div className="lesson-quiz-summary"><strong>Quiz progress</strong><p>{steps.filter((s:any)=>lessonAssessments[String(s.order||'')+':'+String(s.concept||s.title).slice(0,140)]?.attempted).length}/{steps.length} modules assessed · {steps.filter((s:any)=>lessonAssessments[String(s.order||'')+':'+String(s.concept||s.title).slice(0,140)]?.passed).length}/{steps.length} passed</p></div>
       <VideoProgressSummary topic={plan.topic} total={steps.length}/>
       {plan.rationale && (
         <div className="rationale-card">
@@ -957,6 +929,7 @@ function ResearchReportDetailView({ report, jobId }: { report: any; jobId?: stri
   const [gapsViewMode, setGapsViewMode] = useState<'table' | 'cards'>('table');
   const [matrixViewMode, setMatrixViewMode] = useState<'table' | 'cards'>('table');
 
+  if(report?.review_mode==='evolution')return <ResearchProgression report={report}/>;
   const agentic = report?.agentic_controller || {};
   const retrieval = agentic.retrieval_evaluation || {};
   const extraction = agentic.extraction_quality || {};
@@ -1445,6 +1418,7 @@ function ResultView({ result, onSwitchWorkspace, onHandoff }: { result: any; onS
 
   if (result?.research?.papers || result?.papers || result?.paper_analyses || result?.research_gap_synthesis) {
     const data = result.research || result;
+    if(data.review_mode==='evolution')return <ResearchProgression report={data} onLearn={concept=>onHandoff?.('learning','Explain '+concept+' from my research review',concept)}/>;
     return <ResearchReportDetailView report={data} jobId={data.jobId} />;
   }
 

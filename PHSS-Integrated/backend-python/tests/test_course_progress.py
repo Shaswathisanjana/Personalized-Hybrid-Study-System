@@ -13,4 +13,12 @@ class CourseProgressTests(unittest.TestCase):
         attempts=[{'courseTopic':'Arrays','lessonKey':'1:Indexing','passed':True,'createdAt':'2026-10-24'},{'courseTopic':'Arrays','lessonKey':'1:Indexing','passed':False,'createdAt':'2026-10-25'}];self.assertFalse(annotate_plan(self.plan,attempts)['quizProgress']['lessons']['1:Indexing']['passed'])
     def test_viewing_is_not_quiz_completion(self):
         self.assertEqual(annotate_plan(self.plan,[])['quizProgress']['completed'],0)
+    def test_failed_quiz_counts_as_attempted_but_not_passed(self):
+        progress=annotate_plan(self.plan,[{'courseTopic':'Arrays','lessonKey':'1:Indexing','score':.4,'passed':False}])['quizProgress']
+        self.assertEqual(progress['attempted'],1)
+        self.assertEqual(progress['attemptPercentage'],50)
+        self.assertEqual(progress['completed'],0)
+    def test_module_reordering_keeps_exact_concept_progress(self):
+        progress=annotate_plan(self.plan,[{'courseTopic':'Arrays','lessonKey':'7:Indexing','score':.8,'passed':True}])['quizProgress']
+        self.assertEqual(progress['completed'],1)
 if __name__=='__main__':unittest.main()

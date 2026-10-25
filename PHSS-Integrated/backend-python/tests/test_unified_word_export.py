@@ -21,7 +21,7 @@ class UnifiedExportTests(unittest.TestCase):
         analysis._looks_unsupported_or_fragmentary=lambda *args:False
         dotenv=types.ModuleType("dotenv");dotenv.load_dotenv=lambda *a,**k:None
         report={"topic":"Unified fixture","paper_analyses":[{
-            "title":"Evidence fixture","year":"2025","authors":["Test Author"],
+            "source_id":"S40","title":"Evidence fixture","year":"2025","authors":["Test Author"],
             "methodology":"Train and evaluate on held-out samples.",
             "dataset":"Fixture data","results_metrics":"90% fixture accuracy",
             "author_stated_limitations":"Small sample size.",
@@ -36,6 +36,9 @@ class UnifiedExportTests(unittest.TestCase):
         self.assertGreater(len(doc.tables),0)
         cells=" ".join(c.text for t in doc.tables for row in t.rows for c in row.cells)
         self.assertIn("Evidence fixture",cells)
+        self.assertIn("[S40]",cells)
+        self.assertIn("[S40]",text)
+        self.assertNotIn("[?]",cells)
         self.assertIn("90% fixture accuracy",cells)
         self.assertNotIn("PHSS · Research report",text)
 

@@ -37,6 +37,7 @@ def clean_research_topic(raw_topic: str) -> str:
     if not text:
         return ""
     patterns = [
+        r"^(?:i\s+want(?:ed)?|i\s+need)\s+(?:to\s+do\s+)?research\s+(?:on|about|into)\s+",
         r"^(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?(?:give|show|provide|get|find|fetch|search|generate|write|create|prepare|make)\s+(?:me\s+)?(?:a\s+)?(?:detailed\s+|comprehensive\s+|full\s+|brief\s+)?(?:research\s+)?(?:report|literature\s+review|review|paper|papers|study|studies|summary|overview)\s+(?:on|about|for|regarding|involving)\s+",
         r"^(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?(?:tell|inform)\s+(?:me\s+)?about\s+",
         r"^(?:i\s+want\s+to\s+learn|i\s+need\s+a\s+report|i\s+need\s+papers)\s+(?:on|about|for)\s+",
@@ -114,7 +115,7 @@ def export_word_report(report_data: dict) -> bytes:
     return render(report_data)
 
 
-def search_papers(user_id: str, topic: str, count: int = 5, full_analysis: bool = True) -> dict[str, Any]:
+def search_papers(user_id: str, topic: str, count: int | None = None, full_analysis: bool = True) -> dict[str, Any]:
     """Search academic literature and analyze evidence using the full PHSS_Research_Agent pipeline."""
     cleaned = clean_research_topic(topic)
     topic = cleaned if cleaned else topic.strip()
@@ -122,6 +123,9 @@ def search_papers(user_id: str, topic: str, count: int = 5, full_analysis: bool 
         raise ValueError("Research topic must contain between 1 and 300 characters.")
     if len(topic) > 300:
         topic = topic[:300].strip()
+    if count is None:
+        from app.agents.research.evolution import automatic_review
+        return automatic_review(user_id,topic)
     count = max(1, min(int(count), settings.max_research_results))
 
     now = datetime.now(timezone.utc)

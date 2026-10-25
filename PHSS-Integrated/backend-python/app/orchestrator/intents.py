@@ -1,8 +1,21 @@
 """Explicit intents which do not need a remote model to choose a workspace."""
 import re
 
+def is_research_request(message):
+    q = message.strip().lower()
+    # Learning about a research concept is different from retrieving literature.
+    if re.match(r"^(?:please\s+)?(?:explain|teach|help me understand|what is|what are)\b",q) and not re.search(r"\b(find|search|retrieve)\b.*\b(papers?|literature)\b",q):
+        return False
+    return bool(re.search(
+        r"\bresearch\s+(?:on|about|into)\b|"
+        r"\b(?:find|search|retrieve|review|summarize)\b.*\b(?:papers?|literature|studies)\b|"
+        r"\b(?:literature review|systematic review|research gaps?|survey papers?|recent papers?|latest papers?)\b",
+        q))
+
 def explicit_intent(message):
     q = message.lower()
+    if is_research_request(message):
+        return "research"
     if normalize_learning_topic(message) != message.strip():
         return 'learning'
     practice = re.search(r'\b(practi[cs]e|practice|solve|questions?|problems?|interview|leetcode)\b', q)

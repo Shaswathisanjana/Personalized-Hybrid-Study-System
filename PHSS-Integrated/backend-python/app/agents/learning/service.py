@@ -273,21 +273,9 @@ def submit_concept_quiz(
     result = agent.evaluate_quiz_and_remedy(sub)
     res_dict = result.model_dump()
 
-    # Also record updated progress into MongoDB
+    # Persist the graded attempt independently of optional cognitive snapshots.
+    now = datetime.now(timezone.utc)
     try:
-        cog = agent.get_cognitive_state(user_id)
-        now = datetime.now(timezone.utc)
-        get_db().learning_states.update_one(
-            {"userId": user_id},
-            {"$set": {
-                "overallProgress": cog.overall_progress,
-                "concepts": {k: v.model_dump() for k, v in cog.concepts.items()},
-                "activeMisconceptions": [m.model_dump() for m in cog.active_misconceptions],
-                "updatedAt": now
-            }},
-            upsert=True
-        )
-        # Store individual quiz attempt in MongoDB quiz_attempts collection as well
         get_db().quiz_attempts.insert_one({
             "userId": user_id,
             "conceptName": concept_name,
@@ -306,8 +294,22 @@ def submit_concept_quiz(
             "remediationEfficacy": result.remediation_efficacy,
             "createdAt": now,
         })
-    except Exception as e:
-        logger.debug(f"Failed to update MongoDB with quiz outcome: {e}")
+        res_dict["progressSaved"] = True
+    except Exception:
+        logger.warning("Quiz was graded but course-progress persistence failed.")
+        res_dict["progressSaved"] = False
+        res_dict["progressWarning"] = "Your quiz was graded, but saving course progress failed. Keep this result open and check the database connection."
+    try:
+        cog = agent.get_cognitive_state(user_id)
+        if cog is not None:
+            get_db().learning_states.update_one(
+                {"userId":user_id},
+                {"$set":{"overallProgress":cog.overall_progress,
+                         "concepts":{k:v.model_dump() for k,v in cog.concepts.items()},
+                         "activeMisconceptions":[m.model_dump() for m in cog.active_misconceptions],
+                         "updatedAt":now}},upsert=True)
+    except Exception:
+        logger.warning("Cognitive snapshot refresh failed; graded quiz result was handled separately.")
 
     return res_dict
 

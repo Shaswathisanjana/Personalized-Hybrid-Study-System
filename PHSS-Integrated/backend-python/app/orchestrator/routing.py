@@ -40,7 +40,7 @@ def route(message, mode='auto', context=None):
         raise ValueError('Unsupported agent mode.')
     intent = explicit_intent(message)
     if mode == 'auto' and intent and not looks_like_code(message):
-        return {'concept': message[:250], 'selected_agents':[intent], 'reason':'Explicit study intent', 'provider':'local'}
+        return {'concept': message[:250], 'selected_agents':[intent], 'reason':'Explicit user intent', 'provider':'local'}
     fallback = local_route(message)
     if mode == 'auto' and looks_like_code(message):
         return fallback
