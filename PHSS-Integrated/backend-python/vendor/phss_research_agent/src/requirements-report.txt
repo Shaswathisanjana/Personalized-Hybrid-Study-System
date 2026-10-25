@@ -1,0 +1,11 @@
+# Add these to your existing PHSS requirements if not already installed.
+arxiv
+sentence-transformers
+scikit-learn
+numpy
+google-genai
+python-dotenv
+python-docx
+pymupdf
+pypdf
+requests

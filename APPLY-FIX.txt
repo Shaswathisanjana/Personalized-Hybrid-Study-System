@@ -1,0 +1,24 @@
+PHSS RAW-CODE ROUTING AND DEBUGGING FIX
+
+Apply to your existing PHSS-Integrated project. This patch is backend-only and does not replace .env files, frontend, node_modules, requirements or the earlier video-flow changes.
+
+1. Stop npm start with Ctrl+C. Make sure both Node and Python stop. If Python was also started in a separate terminal, stop that copy as well.
+2. Extract this ZIP to a temporary folder.
+3. Copy backend-python from this patch INTO your existing PHSS-Integrated folder. Replace matching files. Do not delete your existing backend-python folder.
+4. Run npm start from the same existing root folder, with your normal virtual environment active.
+5. Submit the original Python snippet again. Preserve its line breaks. The response should show Agent route: coding.
+
+No npm install, npm ci, pip install, setup command or frontend rebuild is required. An ordinary page reload is sufficient.
+
+CHANGES
+- Raw Python syntax such as print(...), input(...), function definitions and control statements is recognized without requiring a debug keyword.
+- Raw-code routing works without a semantic-model call and uses Python code debugging as the topic, rather than reusing the whole code snippet in handoff labels.
+- The original message is preserved in orchestration output/context.
+- Python ast.parse provides static syntax diagnostics with source line/column. No student program is executed on the service. If the AI provider fails, the response still supplies available syntax information and explicitly labels its limits. Valid syntax does not prove correct runtime behavior.
+- Detailed provider errors are redacted and made visible. A real external-provider outage, invalid key, quota error or unavailable model must still be resolved; this patch does not manufacture an AI answer.
+- Empty model settings fall back to defaults and the configured provider preference determines request order.
+- Python loads backend-python/.env explicitly, overriding inherited values. If both Gemini key aliases differ, GEMINI_API_KEY is made canonical for this Python process.
+- A temporary cognitive-history failure no longer blocks a debugging response; the response says that history is unavailable and does not claim a mastery update.
+
+VALIDATION
+Seven standard-library-only unit tests passed. An additional isolated graph-execution check passed with AI and cognitive storage both unavailable. Changed Python files compile. Live AI, database, and browser end-to-end behavior were not verified with your credentials. Raw-code detection is heuristic and currently targets Python; conceptual requests continue through normal agent routing.

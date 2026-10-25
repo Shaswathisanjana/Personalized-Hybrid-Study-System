@@ -1,0 +1,53 @@
+import { LessonVideo } from './IntegratedTools';
+import { useEffect, useRef, useState } from 'react';
+let playerAPI:Promise<any>|undefined;
+function youtubeAPI(){
+ if((window as any).YT?.Player)return Promise.resolve((window as any).YT);
+ if(!playerAPI)playerAPI=new Promise((resolve,reject)=>{const previous=(window as any).onYouTubeIframeAPIReady;(window as any).onYouTubeIframeAPIReady=()=>{previous?.();resolve((window as any).YT);};const script=document.createElement('script');script.src='https://www.youtube.com/iframe_api';script.onerror=()=>{playerAPI=undefined;reject(Error('YouTube player could not load. Check your connection or content blocker.'));};document.head.appendChild(script);setTimeout(()=>{if(!(window as any).YT?.Player){playerAPI=undefined;reject(Error('YouTube player timed out. Retry this lesson.'));}},20000);});return playerAPI;
+}
+async function request(path:string,body?:any){const r=await fetch(path,{credentials:'same-origin',...(body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),keepalive:true}:{})});const d=await r.json();if(!r.ok)throw Error(d.error||'Request failed');return d;}
+export function lessonKey(step:any){return String(step.order||'')+':'+String(step.concept||step.title).slice(0,140);}
+export function VideoProgressSummary({topic,total}:{topic:string;total:number}){
+ const [records,setRecords]=useState<any[]>([]);
+ useEffect(()=>{let active=true;const refresh=()=>request('/api/learning/video-progress?topic='+encodeURIComponent(topic)).then(d=>{if(active)setRecords(d.progress);}).catch(()=>{});refresh();window.addEventListener('phss:video-progress',refresh);return()=>{active=false;window.removeEventListener('phss:video-progress',refresh);};},[topic]);
+ return <div className="video-progress-summary"><strong>Lesson viewing: {records.filter(r=>r.completed).length}/{total} lessons completed</strong><p>Watching records study activity. Your quiz results determine understanding and CACM mastery.</p></div>;
+}
+export function RecommendedLesson({step,topic,level,onQuiz,onSelectResource,autoLoad=false}:{step:any;topic:string;level:string;onQuiz:(s:any)=>void;onSelectResource?:(s:any)=>void;autoLoad?:boolean}){
+ const [videos,setVideos]=useState<any[]>([]),[selected,setSelected]=useState<any>(null),[saved,setSaved]=useState<any>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[syncError,setSyncError]=useState(''),[adaptation,setAdaptation]=useState(''),[noSuitable,setNoSuitable]=useState(false);
+ const host=useRef<HTMLDivElement>(null),requestVersion=useRef(0);const key=lessonKey(step);
+ const load=async()=>{
+  const version=++requestVersion.current;setBusy(true);setError('');
+  try{
+   const u=new URL(step.url||'https://example.invalid');const id=u.hostname==='youtu.be'?u.pathname.slice(1):u.searchParams.get('v')||'';
+   const [vr,pr]=await Promise.allSettled([request('/api/learning/videos?'+new URLSearchParams({concept:step.concept||step.title,level,videoId:id})),request('/api/learning/video-progress?topic='+encodeURIComponent(topic))]);
+   if(version!==requestVersion.current)return;
+   const old=pr.status==='fulfilled'?pr.value.progress.find((r:any)=>r.lessonKey===key):null;
+   if(old){setSaved(old);setSelected({...old,channel:'Previously selected lesson',reason:'Resume your saved lesson.'});}
+   if(vr.status==='rejected')throw vr.reason;
+   const d=vr.value;setVideos(d.videos);setAdaptation(d.adaptation||'');setNoSuitable(d.videos.length===0);
+   if(old)setSelected(d.videos.find((v:any)=>v.videoId===old.videoId)||{...old,channel:'Previously selected lesson',reason:'Resume your saved lesson.'});
+
+  }catch(e:any){if(version===requestVersion.current)setError(e.message);}finally{if(version===requestVersion.current)setBusy(false);}
+ };
+ useEffect(()=>{setVideos([]);setSelected(null);setSaved(null);setError('');setNoSuitable(false);setBusy(false);if(autoLoad)void load();return()=>{requestVersion.current++;};},[topic,key]);
+ useEffect(()=>{
+  if(!selected||!host.current)return;
+  let active=true,player:any,timer:ReturnType<typeof setInterval>,previous:number|null=null,lastTick=Date.now(),ranges:number[][]=[],saving=false,position=0;
+  const initialPosition=saved?.videoId===selected.videoId?saved.position||0:0;
+  async function sync(){if(!player||saving)return;const batch=ranges.splice(0,30);saving=true;try{const d=await request('/api/learning/video-progress',{topic,lessonKey:key,concept:step.concept||step.title,videoId:selected.videoId,title:selected.title,duration:player.getDuration()||selected.duration,position,ranges:batch});if(active){setSaved(d.progress);setSyncError('');window.dispatchEvent(new Event('phss:video-progress'));}}catch(e:any){ranges.unshift(...batch);if(active)setSyncError(e.message);}finally{saving=false;}}
+  youtubeAPI().then(YT=>{if(!active)return;const mount=document.createElement('div');host.current!.replaceChildren(mount);player=new YT.Player(mount,{videoId:selected.videoId,width:'100%',height:360,playerVars:{origin:location.origin,playsinline:1,start:Math.floor(initialPosition)},events:{onReady:()=>{position=initialPosition;},onStateChange:(e:any)=>{previous=null;lastTick=Date.now();if(e.data===0||e.data===2)void sync();},onError:()=>{if(active)setError('This video cannot play here. Choose another recommendation; external viewing cannot be tracked.');}}});let ticks=0;timer=setInterval(()=>{if(!player?.getCurrentTime)return;const now=Date.now(),current=player.getCurrentTime(),wall=(now-lastTick)/1000;position=current;const playing=player.getPlayerState()===1&&document.visibilityState==='visible';if(playing&&previous!==null){const delta=current-previous,rate=player.getPlaybackRate()||1;if(delta>0&&delta<=Math.min(5,wall*rate+1))ranges.push([previous,current]);}previous=playing?current:null;lastTick=now;if(++ticks%10===0)void sync();},1000);}).catch(e=>{if(active)setError(e.message);});
+  return()=>{active=false;clearInterval(timer);void sync();player?.destroy();};
+ },[selected?.videoId,topic,key]);
+ useEffect(()=>{const refresh=()=>{if(videos.length)void load();};window.addEventListener('phss:learning-progress',refresh);return()=>window.removeEventListener('phss:learning-progress',refresh);},[videos.length,topic,key]);
+ const selectedStep=selected?{...step,url:selected.url,videoTitle:selected.title}:step;
+ useEffect(()=>{if(selected)onSelectResource?.({...step,url:selected.url,videoTitle:selected.title});},[selected?.videoId]);
+ return <section className="recommended-lesson"><div className="result-head"><h4>Recommended video lesson</h4><button type="button" className="secondary" disabled={busy} onClick={load}>{busy?'Finding suitable videos…':videos.length?'Refresh recommendations':'Find recommended lessons'}</button></div>{error&&<p className="message error">{error}</p>}{!busy&&!error&&noSuitable&&<p className="muted">No suitable video was found for this concept. You can create a short captioned lesson below.</p>}{adaptation&&<p className="muted">{adaptation}</p>}<div className="video-recommendations">{videos.map((v:any)=><button type="button" className={'video-choice '+(selected?.videoId===v.videoId?'selected':'')} key={v.videoId} onClick={()=>{setError('');setSyncError('');setSelected(v);if(saved?.videoId!==v.videoId)setSaved(null);}}><img src={v.thumbnail} alt=""/><strong>{v.title}</strong><span>{v.channel} · {Math.ceil(v.duration/60)} min</span><small>Recommended for {step.concept||step.title} · {level} level</small></button>)}</div>{videos.length>0&&!noSuitable&&<button className="text-button" onClick={()=>setNoSuitable(true)}>None of these videos fits this lesson</button>}{noSuitable&&<LessonVideo topic={step.concept||step.title}/ >}{selected&&<><h4>{selected.title}</h4><div ref={host}/><a href={selected.url} target="_blank" rel="noreferrer">Open this specific video on YouTube ↗</a><p className="muted">Watch here to save viewing progress. External playback is not tracked.</p><progress value={saved?.videoId===selected.videoId?saved.watchPercent||0:0} max={100}/><p>{Math.round(saved?.videoId===selected.videoId?saved.watchPercent||0:0)}% viewed · {saved?.completed?'Lesson viewing complete — check your understanding next':'Resume is saved while you watch'}</p>{syncError&&<p className="message error">{syncError}</p>}<p className="muted">If the quiz identifies gaps, use the targeted remediation and reassessment below before continuing.</p></>}</section>;
+}
+
+export function LessonChoice({step,topic,level,materials,onQuiz,assessment}:{step:any;topic:string;level:string;materials:any[];onQuiz:(step:any)=>void;assessment?:any}) {
+ const [mode,setMode]=useState<'read'|'watch'|null>(null),[source,setSource]=useState<any>(null);
+ useEffect(()=>{setMode(null);setSource(null);},[topic,step.order]);
+ const readings=materials.filter(r=>r.url&&!r.url.includes('youtube.com/results')&&!/(?:youtube\.com|youtu\.be)/i.test(r.url));
+ function choose(next:'read'|'watch'){setMode(next);setSource(next==='read'?(readings[0]||{...step,url:''}):{...step,url:''});}
+ return <section className="lesson-choice"><h4>Learning options</h4><div className="lesson-mode-buttons"><button type="button" className={mode==='read'?'primary':'secondary'} aria-pressed={mode==='read'} onClick={()=>choose('read')}>Read learning material</button><button type="button" className={mode==='watch'?'primary':'secondary'} aria-pressed={mode==='watch'} onClick={()=>choose('watch')}>Watch a recommended video</button></div>{!mode&&<p className="muted">Video and reading both lead to the same lesson quiz.</p>}{mode==='read'&&<div className="reading-options">{readings.length?readings.map((r:any,i:number)=><article key={r.url+i}><h4>{r.title}</h4><p>{r.snippet||r.objective}</p><a className="secondary link-button" href={r.url} target="_blank" rel="noreferrer" onClick={()=>setSource(r)}>Open learning material ↗</a></article>):<p>No reading material was saved for this concept. Choose Watch a recommended video.</p>}</div>}{mode==='watch'&&<RecommendedLesson step={step} topic={topic} level={level} onQuiz={onQuiz} onSelectResource={r=>{setSource(r);}} autoLoad/>}<div className="shared-lesson-quiz"><h4>Check your understanding</h4><p>After watching a video, a generated lesson, or reading the material, answer this quiz to update your roadmap progress.</p>{assessment?.passed&&<p className="lesson-passed">✓ Lesson quiz passed</p>}<button type="button" className="quiz-action" onClick={()=>onQuiz({...step,...(source||{}),order:step.order,concept:step.concept||step.title})}>{assessment?.attempted?'Retake lesson quiz':'Take lesson quiz'} →</button><small>You can take or retake the quiz at any time.</small></div></section>;
+}

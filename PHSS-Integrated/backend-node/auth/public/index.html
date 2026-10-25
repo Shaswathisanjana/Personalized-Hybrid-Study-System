@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer"><meta name="theme-color" content="#244de8">
+  <title>Account · Personalized Hybrid Study System</title>
+  <link rel="stylesheet" href="/auth/style.css"><script defer src="/auth/app.js"></script>
+</head>
+<body>
+  <main class="auth-shell">
+    <a class="brand" href="/auth/" aria-label="Personalized Hybrid Study System home"><span class="brand-mark">PH</span><span>Personalized Hybrid<br>Study System</span></a>
+    <section class="auth-card">
+      <p class="eyebrow">YOUR ACADEMIC WORKSPACE</p>
+      <h1 id="heading">Welcome back</h1><p id="intro" class="muted">Log in to continue from where you left off.</p>
+      <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+      <form id="loginForm" class="form" autocomplete="on">
+        <label>Email address<input id="loginEmail" type="email" autocomplete="email" required maxlength="254" placeholder="you@example.com"></label>
+        <label>Password<input id="loginPassword" type="password" autocomplete="current-password" required maxlength="128" placeholder="Your password"></label>
+        <button type="submit">Log in</button>
+        <button type="button" class="link-button" data-mode="forgot">Forgot password?</button>
+        <button type="button" id="resendVerification" class="link-button">Resend verification email</button>
+        <p class="switch">New here? <button type="button" class="inline-button" data-mode="register">Create an account</button></p>
+      </form>
+      <form id="registerForm" class="form" hidden autocomplete="on">
+        <label>Full name<input id="registerName" type="text" autocomplete="name" required minlength="2" maxlength="100" placeholder="Your name"></label>
+        <label>Email address<input id="registerEmail" type="email" autocomplete="email" required maxlength="254" placeholder="you@example.com"></label>
+        <label>Password<input id="registerPassword" type="password" autocomplete="new-password" required minlength="12" maxlength="128" placeholder="At least 12 characters"></label>
+        <label>Confirm password<input id="registerConfirm" type="password" autocomplete="new-password" required minlength="12" maxlength="128" placeholder="Enter it again"></label>
+        <p class="hint">Use at least 12 characters. We will email you a verification link before you can log in.</p>
+        <button type="submit">Create account</button>
+        <p class="switch">Already registered? <button type="button" class="inline-button" data-mode="login">Log in</button></p>
+      </form>
+      <form id="forgotForm" class="form" hidden>
+        <label>Email address<input id="forgotEmail" type="email" autocomplete="email" required maxlength="254" placeholder="you@example.com"></label>
+        <button type="submit">Send reset link</button>
+        <p class="switch"><button type="button" class="inline-button" data-mode="login">Back to login</button></p>
+      </form>
+      <form id="resetForm" class="form" hidden>
+        <label>New password<input id="resetPassword" type="password" autocomplete="new-password" required minlength="12" maxlength="128" placeholder="At least 12 characters"></label>
+        <label>Confirm new password<input id="resetConfirm" type="password" autocomplete="new-password" required minlength="12" maxlength="128" placeholder="Enter it again"></label>
+        <button type="submit">Update password</button>
+      </form>
+      <div id="verifyPanel" hidden><p id="verifyMessage" class="muted">Verifying your email…</p><button id="goLogin" type="button">Go to login</button></div>
+    </section>
+    <p class="footnote">Use an email address you control. Never share your password or verification links.</p>
+  </main>
+</body>
+</html>

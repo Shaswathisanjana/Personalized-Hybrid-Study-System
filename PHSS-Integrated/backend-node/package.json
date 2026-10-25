@@ -1,0 +1,39 @@
+{
+  "name": "phss-main-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PHSS Node.js application backend and authentication service",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/core.test.cjs test/roadmap.test.cjs test/student-id.test.cjs test/api.test.cjs",
+    "test:core": "node --test test/core.test.cjs",
+    "test:roadmap": "node --test test/roadmap.test.cjs",
+    "test:student": "node --test test/student-id.test.cjs",
+    "test:db": "node --test test/api.test.cjs",
+    "test:browser": "node test/browser.cjs",
+    "test:home": "node test/home.cjs",
+    "test:research": "node --test test/research.test.cjs",
+    "check": "node --check server.js && node --check auth/index.cjs && node --check coding/index.cjs && node --check research/index.cjs"
+  },
+  "dependencies": {
+    "@langchain/core": "^0.3.79",
+    "@langchain/langgraph": "^0.4.9",
+    "axios": "^1.12.2",
+    "bcryptjs": "^2.4.3",
+    "connect-mongo": "^5.1.0",
+    "dotenv": "^17.4.2",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "express-session": "^1.18.2",
+    "mongoose": "^8.19.1",
+    "nodemailer": "^6.10.1",
+    "pyodide": "314.0.7"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "10.2.1",
+    "playwright": "1.58.2"
+  }
+}

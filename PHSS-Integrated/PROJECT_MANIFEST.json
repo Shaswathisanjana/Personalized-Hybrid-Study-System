@@ -1,0 +1,17 @@
+{
+  "project": "PHSS Integrated",
+  "date": "2026-10-24",
+  "sources": [
+    "PHSS-Unified.zip",
+    "Personalized-Hybrid-Study-System-smera.zip"
+  ],
+  "entrypoints": {
+    "frontend": "frontend/src/App.tsx",
+    "public_api": "backend-node/server.js",
+    "internal_ai": "backend-python/app/main.py"
+  },
+  "routing": "backend-python/app/orchestrator/graph.py",
+  "cacm": "backend-python/app/agents/cacm.py",
+  "video": "frontend/src/IntegratedTools.tsx",
+  "setup": "SETUP.md"
+}

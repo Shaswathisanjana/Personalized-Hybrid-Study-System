@@ -1,0 +1,1175 @@
+{
+  "version": "2026-10-20.catalog.1",
+  "language": "python",
+  "questions": [
+    {
+      "id": "print-through-n",
+      "title": "Print 1 through N",
+      "topic": "loops",
+      "difficulty": "Easy",
+      "mode": "stdout",
+      "description": "Read an integer n from input(). Print each number from 1 through n on its own line. For n = 0, print nothing. Constraint: 0 <= n <= 100.",
+      "starterCode": "n = int(input())\n# Write your loop here\n",
+      "hint": "Think about which endpoint range includes and which it excludes.",
+      "revision": "Trace the first and last iteration of a loop. Compare range(n) and range(1, n + 1). Practise n = 0, 1, and 5.",
+      "tests": [
+        {
+          "stdin": "5\n",
+          "expected": "1\n2\n3\n4\n5\n"
+        },
+        {
+          "stdin": "1\n",
+          "expected": "1\n"
+        },
+        {
+          "stdin": "0\n",
+          "expected": ""
+        },
+        {
+          "stdin": "3\n",
+          "expected": "1\n2\n3\n"
+        }
+      ]
+    },
+    {
+      "id": "sum-array",
+      "title": "Sum Array Values",
+      "topic": "arrays",
+      "difficulty": "Easy",
+      "mode": "function",
+      "description": "Implement solve(nums) and return the sum of the integers. An empty list has sum 0. Constraints: at most 100 values, each between -1000 and 1000.",
+      "starterCode": "def solve(nums):\n    total = 0\n    # Write your code here\n    return total\n",
+      "hint": "Keep a running total, then return it after processing the list.",
+      "revision": "Trace an accumulator over an array. Check an empty list and negative values. Explain why a return inside the loop changes the result.",
+      "tests": [
+        {
+          "args": [
+            [
+              1,
+              2,
+              3,
+              4
+            ]
+          ],
+          "expected": 10
+        },
+        {
+          "args": [
+            [
+              -2,
+              5,
+              7
+            ]
+          ],
+          "expected": 10
+        },
+        {
+          "args": [
+            []
+          ],
+          "expected": 0
+        },
+        {
+          "args": [
+            [
+              -4,
+              -6
+            ]
+          ],
+          "expected": -10
+        }
+      ]
+    },
+    {
+      "id": "reverse-string",
+      "title": "Reverse a String",
+      "topic": "strings",
+      "difficulty": "Easy",
+      "mode": "function",
+      "description": "Implement solve(text) and return the characters in reverse order. Keep spaces and letter case. Input length is at most 100.",
+      "starterCode": "def solve(text):\n    pass\n",
+      "hint": "Try reading the indices from the last character to the first.",
+      "revision": "Review string indexing, slices, and immutable strings. Test the empty string and a string containing spaces.",
+      "tests": [
+        {
+          "args": [
+            "agent"
+          ],
+          "expected": "tnega"
+        },
+        {
+          "args": [
+            ""
+          ],
+          "expected": ""
+        },
+        {
+          "args": [
+            "Level"
+          ],
+          "expected": "leveL"
+        },
+        {
+          "args": [
+            "a b"
+          ],
+          "expected": "b a"
+        }
+      ]
+    },
+    {
+      "id": "find-largest",
+      "title": "Find the Largest Value",
+      "topic": "arrays",
+      "difficulty": "Easy",
+      "mode": "function",
+      "description": "Implement solve(nums) and return the largest integer in a non-empty list. Constraints: 1 to 100 values; negative values are allowed.",
+      "starterCode": "def solve(nums):\n    largest = nums[0]\n    # Write your code here\n    return largest\n",
+      "hint": "Your initial largest value must also work when every value is negative.",
+      "revision": "Review initial values and loop invariants. After processing each element, largest should be the maximum of all elements seen.",
+      "tests": [
+        {
+          "args": [
+            [
+              -3,
+              8,
+              2,
+              5
+            ]
+          ],
+          "expected": 8
+        },
+        {
+          "args": [
+            [
+              4
+            ]
+          ],
+          "expected": 4
+        },
+        {
+          "args": [
+            [
+              -9,
+              -2,
+              -7
+            ]
+          ],
+          "expected": -2
+        },
+        {
+          "args": [
+            [
+              2,
+              2,
+              2
+            ]
+          ],
+          "expected": 2
+        }
+      ]
+    },
+    {
+      "id": "count-vowels",
+      "title": "Count Vowels",
+      "topic": "strings",
+      "difficulty": "Easy",
+      "mode": "function",
+      "description": "Implement solve(text). Count a, e, i, o, u, including uppercase versions. All input characters are ASCII, and length is at most 100.",
+      "starterCode": "def solve(text):\n    count = 0\n    # Write your code here\n    return count\n",
+      "hint": "Normalize the character case before checking membership in the vowel set.",
+      "revision": "Review string membership and case conversion. Distinguish testing membership from comparing against a whole string.",
+      "tests": [
+        {
+          "args": [
+            "Education"
+          ],
+          "expected": 5
+        },
+        {
+          "args": [
+            "rhythm"
+          ],
+          "expected": 0
+        },
+        {
+          "args": [
+            "AEIOU"
+          ],
+          "expected": 5
+        },
+        {
+          "args": [
+            ""
+          ],
+          "expected": 0
+        }
+      ]
+    },
+    {
+      "id": "binary-search",
+      "title": "Find a Sorted Target",
+      "topic": "binary_search",
+      "difficulty": "Easy",
+      "mode": "function",
+      "description": "Implement solve(nums, target). The integers are sorted and distinct. Return the target index or -1 if absent. Use binary search for O(log n) work. At most 100 values. These output tests do not prove complexity.",
+      "starterCode": "def solve(nums, target):\n    left = 0\n    right = len(nums) - 1\n    # Write your code here\n    return -1\n",
+      "hint": "State which endpoints are inclusive and make the search interval smaller after each comparison.",
+      "revision": "Trace left, right, and mid. For an inclusive interval, discard a checked midpoint using mid + 1 or mid - 1. Test empty and one-element lists.",
+      "tests": [
+        {
+          "args": [
+            [
+              1,
+              3,
+              6,
+              8
+            ],
+            6
+          ],
+          "expected": 2
+        },
+        {
+          "args": [
+            [
+              1,
+              3,
+              6,
+              8
+            ],
+            4
+          ],
+          "expected": -1
+        },
+        {
+          "args": [
+            [
+              2
+            ],
+            2
+          ],
+          "expected": 0
+        },
+        {
+          "args": [
+            [],
+            7
+          ],
+          "expected": -1
+        },
+        {
+          "args": [
+            [
+              1,
+              3,
+              6,
+              8
+            ],
+            8
+          ],
+          "expected": 3
+        }
+      ]
+    },
+    {
+      "id": "palindrome",
+      "title": "Check a Palindrome",
+      "topic": "two_pointers",
+      "difficulty": "Easy",
+      "mode": "function",
+      "description": "Implement solve(text) and return a Boolean indicating whether text equals its reverse. Comparison is case-sensitive and includes spaces. An empty string is a palindrome. Length is at most 100.",
+      "starterCode": "def solve(text):\n    pass\n",
+      "hint": "Compare the two ends, then move inward.",
+      "revision": "Review the stopping condition for two pointers. A mismatch disproves a palindrome; matching just the first pair does not prove one.",
+      "tests": [
+        {
+          "args": [
+            "level"
+          ],
+          "expected": true
+        },
+        {
+          "args": [
+            "abca"
+          ],
+          "expected": false
+        },
+        {
+          "args": [
+            ""
+          ],
+          "expected": true
+        },
+        {
+          "args": [
+            "Aa"
+          ],
+          "expected": false
+        }
+      ]
+    },
+    {
+      "id": "balanced-brackets",
+      "title": "Match Brackets",
+      "topic": "stacks",
+      "difficulty": "Easy",
+      "mode": "function",
+      "description": "Implement solve(text). Input contains only ()[]{}. Return true if brackets are balanced and correctly nested, otherwise false. The empty string is balanced. Length is at most 100.",
+      "starterCode": "def solve(text):\n    stack = []\n    # Write your code here\n",
+      "hint": "The most recent unmatched opening bracket must match the next closing bracket.",
+      "revision": "Review last-in-first-out order. Check for an empty stack before popping, and check for unmatched opening brackets at the end.",
+      "tests": [
+        {
+          "args": [
+            "([]){}"
+          ],
+          "expected": true
+        },
+        {
+          "args": [
+            "([)]"
+          ],
+          "expected": false
+        },
+        {
+          "args": [
+            "("
+          ],
+          "expected": false
+        },
+        {
+          "args": [
+            ")"
+          ],
+          "expected": false
+        },
+        {
+          "args": [
+            ""
+          ],
+          "expected": true
+        }
+      ]
+    },
+    {
+      "id": "factorial",
+      "title": "Compute a Factorial",
+      "topic": "recursion",
+      "difficulty": "Easy",
+      "mode": "function",
+      "description": "Implement solve(n) to return n factorial. By definition, 0! = 1. Constraint: 0 <= n <= 10. Practise a recursive solution; output tests also accept an iterative solution.",
+      "starterCode": "def solve(n):\n    # Include a base case\n    pass\n",
+      "hint": "Relate n! to (n - 1)! and identify the smallest input.",
+      "revision": "Review base cases and progress toward them. Trace the return values of calls for n = 0, 1, and 3.",
+      "tests": [
+        {
+          "args": [
+            5
+          ],
+          "expected": 120
+        },
+        {
+          "args": [
+            0
+          ],
+          "expected": 1
+        },
+        {
+          "args": [
+            1
+          ],
+          "expected": 1
+        },
+        {
+          "args": [
+            8
+          ],
+          "expected": 40320
+        }
+      ]
+    },
+    {
+      "id": "max-subarray",
+      "title": "Best Contiguous Sum",
+      "topic": "dynamic_programming",
+      "difficulty": "Medium",
+      "mode": "function",
+      "description": "Implement solve(nums) and return the largest sum of a non-empty contiguous subarray. Input is a non-empty list of at most 100 integers from -100 to 100.",
+      "starterCode": "def solve(nums):\n    pass\n",
+      "hint": "At each position, decide whether to start again or extend the previous subarray.",
+      "revision": "Separate the best sum ending here from the best sum anywhere. Initialize from actual data so that an all-negative list works.",
+      "tests": [
+        {
+          "args": [
+            [
+              -2,
+              1,
+              -3,
+              4,
+              -1,
+              2,
+              1,
+              -5,
+              4
+            ]
+          ],
+          "expected": 6
+        },
+        {
+          "args": [
+            [
+              -4,
+              -2,
+              -9
+            ]
+          ],
+          "expected": -2
+        },
+        {
+          "args": [
+            [
+              5
+            ]
+          ],
+          "expected": 5
+        },
+        {
+          "args": [
+            [
+              1,
+              2,
+              3
+            ]
+          ],
+          "expected": 6
+        }
+      ]
+    },
+    {
+      "id": "unique-window",
+      "title": "Longest Unique Window",
+      "topic": "sliding_window",
+      "difficulty": "Medium",
+      "mode": "function",
+      "description": "Implement solve(text) and return the length of the longest contiguous substring without repeated characters. Characters are case-sensitive. Length is at most 100.",
+      "starterCode": "def solve(text):\n    pass\n",
+      "hint": "Move the left boundary until the current window contains no duplicate characters.",
+      "revision": "Track character positions or counts. The left boundary should never move backward. Trace abba and an empty string.",
+      "tests": [
+        {
+          "args": [
+            "abcabcbb"
+          ],
+          "expected": 3
+        },
+        {
+          "args": [
+            "abba"
+          ],
+          "expected": 2
+        },
+        {
+          "args": [
+            "bbbbb"
+          ],
+          "expected": 1
+        },
+        {
+          "args": [
+            ""
+          ],
+          "expected": 0
+        },
+        {
+          "args": [
+            "pwwkew"
+          ],
+          "expected": 3
+        }
+      ]
+    },
+    {
+      "id": "stair-ways",
+      "title": "Count Stair Routes",
+      "topic": "dynamic_programming",
+      "difficulty": "Easy",
+      "mode": "function",
+      "description": "Implement solve(n). You may climb 1 or 2 steps at a time. Return the number of ordered ways to reach step n. There is one way to climb 0 steps: do nothing. Constraint: 0 <= n <= 20.",
+      "starterCode": "def solve(n):\n    pass\n",
+      "hint": "The last move reaches n from either n - 1 or n - 2.",
+      "revision": "Define each DP state and its base cases. Check n = 0 and n = 1 before filling later states.",
+      "tests": [
+        {
+          "args": [
+            3
+          ],
+          "expected": 3
+        },
+        {
+          "args": [
+            0
+          ],
+          "expected": 1
+        },
+        {
+          "args": [
+            1
+          ],
+          "expected": 1
+        },
+        {
+          "args": [
+            5
+          ],
+          "expected": 8
+        }
+      ]
+    },
+    {
+      "id": "lc-two-sum",
+      "title": "Two Sum",
+      "topic": "arrays",
+      "difficulty": "Easy",
+      "mode": "function",
+      "description": "Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.\nYou may assume that each input would have exactly one solution, and you may not use the same element twice.\nYou can return the answer in any order.\nExample 1:\nExample 2:\nExample 3:\nConstraints:\n\nInput: nums = [2,7,11,15], target = 9\nOutput: [0,1]\nExplanation: Because nums[0] + nums[1] == 9, we return [0, 1].\n\nInput: nums = [3,2,4], target = 6\nOutput: [1,2]\n\nInput: nums = [3,3], target = 6\nOutput: [0,1]",
+      "starterCode": "class Solution:\n    def twoSum(self, nums, target):\n        # Write your solution here.\n        pass\n\n\ndef solve(nums, target):\n    return Solution().twoSum(nums, target)\n",
+      "constraints": [
+        "2 <= nums.length <= 104",
+        "-109 <= nums[i] <= 109",
+        "-109 <= target <= 109",
+        "Only one valid answer exists."
+      ],
+      "hint": "A really brute force way would be to search for all possible pairs of numbers but that would be too slow. Again, it's best to try out brute force solutions for just for completeness. It is from these brute force solutions that you can come up with optimizations.",
+      "revision": "Trace a failing example, review the topic, then retry a distinct solution.",
+      "tests": [
+        {
+          "args": [
+            [
+              2,
+              7,
+              11,
+              15
+            ],
+            9
+          ],
+          "expected": [
+            0,
+            1
+          ]
+        },
+        {
+          "args": [
+            [
+              3,
+              2,
+              4
+            ],
+            6
+          ],
+          "expected": [
+            1,
+            2
+          ]
+        },
+        {
+          "args": [
+            [
+              3,
+              3
+            ],
+            6
+          ],
+          "expected": [
+            0,
+            1
+          ]
+        }
+      ],
+      "validator": "two_sum",
+      "sourceUrl": "https://leetcode.com/problems/two-sum/",
+      "testProvenance": "Imported visible examples; not LeetCode hidden tests"
+    },
+    {
+      "id": "lc-binary-search",
+      "title": "Binary Search",
+      "topic": "binary_search",
+      "difficulty": "Easy",
+      "mode": "function",
+      "description": "Given an array of integers nums which is sorted in ascending order, and an integer target, write a function to search target in nums. If target exists, then return its index. Otherwise, return -1.\nYou must write an algorithm with O(log n) runtime complexity.\nExample 1:\nExample 2:\nConstraints:\n\nInput: nums = [-1,0,3,5,9,12], target = 9\nOutput: 4\nExplanation: 9 exists in nums and its index is 4\n\nInput: nums = [-1,0,3,5,9,12], target = 2\nOutput: -1\nExplanation: 2 does not exist in nums so return -1",
+      "starterCode": "class Solution:\n    def search(self, nums, target):\n        # Write your solution here.\n        pass\n\n\ndef solve(nums, target):\n    return Solution().search(nums, target)\n",
+      "constraints": [
+        "1 <= nums.length <= 104",
+        "-104 < nums[i], target < 104",
+        "All the integers in nums are unique.",
+        "nums is sorted in ascending order."
+      ],
+      "hint": "",
+      "revision": "Trace a failing example, review the topic, then retry a distinct solution.",
+      "tests": [
+        {
+          "args": [
+            [
+              -1,
+              0,
+              3,
+              5,
+              9,
+              12
+            ],
+            9
+          ],
+          "expected": 4
+        },
+        {
+          "args": [
+            [
+              -1,
+              0,
+              3,
+              5,
+              9,
+              12
+            ],
+            2
+          ],
+          "expected": -1
+        }
+      ],
+      "validator": "exact",
+      "sourceUrl": "https://leetcode.com/problems/binary-search/",
+      "testProvenance": "Imported visible examples; not LeetCode hidden tests"
+    },
+    {
+      "id": "lc-valid-parentheses",
+      "title": "Valid Parentheses",
+      "topic": "stacks",
+      "difficulty": "Easy",
+      "mode": "function",
+      "description": "Given a string s containing just the characters '(', ')', '{', '}', '[' and ']', determine if the input string is valid.\nAn input string is valid if:\nExample 1:\nExample 2:\nExample 3:\nExample 4:\nExample 5:\nConstraints:\n\nInput: s = \"()\"\nOutput: true\n\nInput: s = \"()[]{}\"\nOutput: true\n\nInput: s = \"(]\"\nOutput: false\n\nInput: s = \"([])\"\nOutput: true\n\nInput: s = \"([)]\"\nOutput: false",
+      "starterCode": "class Solution:\n    def isValid(self, s):\n        # Write your solution here.\n        pass\n\n\ndef solve(s):\n    return Solution().isValid(s)\n",
+      "constraints": [
+        "1 <= s.length <= 104",
+        "s consists of parentheses only '()[]{}'."
+      ],
+      "hint": "Use a stack of characters.",
+      "revision": "Trace a failing example, review the topic, then retry a distinct solution.",
+      "tests": [
+        {
+          "args": [
+            "()"
+          ],
+          "expected": true
+        },
+        {
+          "args": [
+            "()[]{}"
+          ],
+          "expected": true
+        },
+        {
+          "args": [
+            "(]"
+          ],
+          "expected": false
+        },
+        {
+          "args": [
+            "([])"
+          ],
+          "expected": true
+        },
+        {
+          "args": [
+            "([)]"
+          ],
+          "expected": false
+        }
+      ],
+      "validator": "exact",
+      "sourceUrl": "https://leetcode.com/problems/valid-parentheses/",
+      "testProvenance": "Imported visible examples; not LeetCode hidden tests"
+    },
+    {
+      "id": "lc-palindrome-number",
+      "title": "Palindrome Number",
+      "topic": "unclassified",
+      "difficulty": "Easy",
+      "mode": "function",
+      "description": "Given an integer x, return true if x is a palindrome, and false otherwise.\nExample 1:\nExample 2:\nExample 3:\nConstraints:\n\nInput: x = 121\nOutput: true\nExplanation: 121 reads as 121 from left to right and from right to left.\n\nInput: x = -121\nOutput: false\nExplanation: From left to right, it reads -121. From right to left, it becomes 121-. Therefore it is not a palindrome.\n\nInput: x = 10\nOutput: false\nExplanation: Reads 01 from right to left. Therefore it is not a palindrome.",
+      "starterCode": "class Solution:\n    def isPalindrome(self, x):\n        # Write your solution here.\n        pass\n\n\ndef solve(x):\n    return Solution().isPalindrome(x)\n",
+      "constraints": [
+        "-231 <= x <= 231 - 1"
+      ],
+      "hint": "Beware of overflow when you reverse the integer.",
+      "revision": "Trace a failing example, review the topic, then retry a distinct solution.",
+      "tests": [
+        {
+          "args": [
+            121
+          ],
+          "expected": true
+        },
+        {
+          "args": [
+            -121
+          ],
+          "expected": false
+        },
+        {
+          "args": [
+            10
+          ],
+          "expected": false
+        }
+      ],
+      "validator": "exact",
+      "sourceUrl": "https://leetcode.com/problems/palindrome-number/",
+      "testProvenance": "Imported visible examples; not LeetCode hidden tests"
+    },
+    {
+      "id": "lc-length-of-last-word",
+      "title": "Length of Last Word",
+      "topic": "strings",
+      "difficulty": "Easy",
+      "mode": "function",
+      "description": "Given a string s consisting of words and spaces, return the length of the last word in the string.\nA word is a maximal substring consisting of non-space characters only.\nExample 1:\nExample 2:\nExample 3:\nConstraints:\n\nInput: s = \"Hello World\"\nOutput: 5\nExplanation: The last word is \"World\" with length 5.\n\nInput: s = \"   fly me   to   the moon  \"\nOutput: 4\nExplanation: The last word is \"moon\" with length 4.\n\nInput: s = \"luffy is still joyboy\"\nOutput: 6\nExplanation: The last word is \"joyboy\" with length 6.",
+      "starterCode": "class Solution:\n    def lengthOfLastWord(self, s):\n        # Write your solution here.\n        pass\n\n\ndef solve(s):\n    return Solution().lengthOfLastWord(s)\n",
+      "constraints": [
+        "1 <= s.length <= 104",
+        "s consists of only English letters and spaces ' '.",
+        "There will be at least one word in s."
+      ],
+      "hint": "",
+      "revision": "Trace a failing example, review the topic, then retry a distinct solution.",
+      "tests": [
+        {
+          "args": [
+            "Hello World"
+          ],
+          "expected": 5
+        },
+        {
+          "args": [
+            "   fly me   to   the moon  "
+          ],
+          "expected": 4
+        },
+        {
+          "args": [
+            "luffy is still joyboy"
+          ],
+          "expected": 6
+        }
+      ],
+      "validator": "exact",
+      "sourceUrl": "https://leetcode.com/problems/length-of-last-word/",
+      "testProvenance": "Imported visible examples; not LeetCode hidden tests"
+    },
+    {
+      "id": "lc-single-number",
+      "title": "Single Number",
+      "topic": "arrays",
+      "difficulty": "Easy",
+      "mode": "function",
+      "description": "Given a non-empty array of integers nums, every element appears twice except for one. Find that single one.\nYou must implement a solution with a linear runtime complexity and use only constant extra space.\nExample 1:\nExample 2:\nExample 3:\nConstraints:\n\nInput: nums = [2,2,1]\nOutput: 1\n\nInput: nums = [4,1,2,1,2]\nOutput: 4\n\nInput: nums = [1]\nOutput: 1",
+      "starterCode": "class Solution:\n    def singleNumber(self, nums):\n        # Write your solution here.\n        pass\n\n\ndef solve(nums):\n    return Solution().singleNumber(nums)\n",
+      "constraints": [
+        "1 <= nums.length <= 3 * 104",
+        "-3 * 104 <= nums[i] <= 3 * 104",
+        "Each element in the array appears twice except for one element which appears only once."
+      ],
+      "hint": "Think about the XOR (^) operator's property.",
+      "revision": "Trace a failing example, review the topic, then retry a distinct solution.",
+      "tests": [
+        {
+          "args": [
+            [
+              2,
+              2,
+              1
+            ]
+          ],
+          "expected": 1
+        },
+        {
+          "args": [
+            [
+              4,
+              1,
+              2,
+              1,
+              2
+            ]
+          ],
+          "expected": 4
+        },
+        {
+          "args": [
+            [
+              1
+            ]
+          ],
+          "expected": 1
+        }
+      ],
+      "validator": "exact",
+      "sourceUrl": "https://leetcode.com/problems/single-number/",
+      "testProvenance": "Imported visible examples; not LeetCode hidden tests"
+    },
+    {
+      "id": "lc-contains-duplicate",
+      "title": "Contains Duplicate",
+      "topic": "arrays",
+      "difficulty": "Easy",
+      "mode": "function",
+      "description": "Given an integer array nums, return true if any value appears at least twice in the array, and return false if every element is distinct.\nExample 1:\nExample 2:\nExample 3:\nConstraints:\n\nInput: nums = [1,2,3,1]\nOutput: true\nExplanation:\nThe element 1 occurs at the indices 0 and 3.\n\nInput: nums = [1,2,3,4]\nOutput: false\nExplanation:\nAll elements are distinct.\n\nInput: nums = [1,1,1,3,3,4,3,2,4,2]\nOutput: true",
+      "starterCode": "class Solution:\n    def containsDuplicate(self, nums):\n        # Write your solution here.\n        pass\n\n\ndef solve(nums):\n    return Solution().containsDuplicate(nums)\n",
+      "constraints": [
+        "1 <= nums.length <= 105",
+        "-109 <= nums[i] <= 109"
+      ],
+      "hint": "",
+      "revision": "Trace a failing example, review the topic, then retry a distinct solution.",
+      "tests": [
+        {
+          "args": [
+            [
+              1,
+              2,
+              3,
+              1
+            ]
+          ],
+          "expected": true
+        },
+        {
+          "args": [
+            [
+              1,
+              2,
+              3,
+              4
+            ]
+          ],
+          "expected": false
+        },
+        {
+          "args": [
+            [
+              1,
+              1,
+              1,
+              3,
+              3,
+              4,
+              3,
+              2,
+              4,
+              2
+            ]
+          ],
+          "expected": true
+        }
+      ],
+      "validator": "exact",
+      "sourceUrl": "https://leetcode.com/problems/contains-duplicate/",
+      "testProvenance": "Imported visible examples; not LeetCode hidden tests"
+    },
+    {
+      "id": "lc-search-insert-position",
+      "title": "Search Insert Position",
+      "topic": "binary_search",
+      "difficulty": "Easy",
+      "mode": "function",
+      "description": "Given a sorted array of distinct integers and a target value, return the index if the target is found. If not, return the index where it would be if it were inserted in order.\nYou must write an algorithm with O(log n) runtime complexity.\nExample 1:\nExample 2:\nExample 3:\nConstraints:\n\nInput: nums = [1,3,5,6], target = 5\nOutput: 2\n\nInput: nums = [1,3,5,6], target = 2\nOutput: 1\n\nInput: nums = [1,3,5,6], target = 7\nOutput: 4",
+      "starterCode": "class Solution:\n    def searchInsert(self, nums, target):\n        # Write your solution here.\n        pass\n\n\ndef solve(nums, target):\n    return Solution().searchInsert(nums, target)\n",
+      "constraints": [
+        "1 <= nums.length <= 104",
+        "-104 <= nums[i] <= 104",
+        "nums contains distinct values sorted in ascending order.",
+        "-104 <= target <= 104"
+      ],
+      "hint": "",
+      "revision": "Trace a failing example, review the topic, then retry a distinct solution.",
+      "tests": [
+        {
+          "args": [
+            [
+              1,
+              3,
+              5,
+              6
+            ],
+            5
+          ],
+          "expected": 2
+        },
+        {
+          "args": [
+            [
+              1,
+              3,
+              5,
+              6
+            ],
+            2
+          ],
+          "expected": 1
+        },
+        {
+          "args": [
+            [
+              1,
+              3,
+              5,
+              6
+            ],
+            7
+          ],
+          "expected": 4
+        }
+      ],
+      "validator": "exact",
+      "sourceUrl": "https://leetcode.com/problems/search-insert-position/",
+      "testProvenance": "Imported visible examples; not LeetCode hidden tests"
+    },
+    {
+      "id": "lc-sqrtx",
+      "title": "Sqrt(x)",
+      "topic": "binary_search",
+      "difficulty": "Easy",
+      "mode": "function",
+      "description": "Given a non-negative integer x, return the square root of x rounded down to the nearest integer. The returned integer should be non-negative as well.\nYou must not use any built-in exponent function or operator.\nExample 1:\nExample 2:\nConstraints:\n\nInput: x = 4\nOutput: 2\nExplanation: The square root of 4 is 2, so we return 2.\n\nInput: x = 8\nOutput: 2\nExplanation: The square root of 8 is 2.82842..., and since we round it down to the nearest integer, 2 is returned.",
+      "starterCode": "class Solution:\n    def mySqrt(self, x):\n        # Write your solution here.\n        pass\n\n\ndef solve(x):\n    return Solution().mySqrt(x)\n",
+      "constraints": [
+        "0 <= x <= 231 - 1"
+      ],
+      "hint": "Try exploring all integers. (Credits: @annujoshi)",
+      "revision": "Trace a failing example, review the topic, then retry a distinct solution.",
+      "tests": [
+        {
+          "args": [
+            4
+          ],
+          "expected": 2
+        },
+        {
+          "args": [
+            8
+          ],
+          "expected": 2
+        }
+      ],
+      "validator": "exact",
+      "sourceUrl": "https://leetcode.com/problems/sqrtx/",
+      "testProvenance": "Imported visible examples; not LeetCode hidden tests"
+    },
+    {
+      "id": "lc-climbing-stairs",
+      "title": "Climbing Stairs",
+      "topic": "dynamic_programming",
+      "difficulty": "Easy",
+      "mode": "function",
+      "description": "You are climbing a staircase. It takes n steps to reach the top.\nEach time you can either climb 1 or 2 steps. In how many distinct ways can you climb to the top?\nExample 1:\nExample 2:\nConstraints:\n\nInput: n = 2\nOutput: 2\nExplanation: There are two ways to climb to the top.\n1. 1 step + 1 step\n2. 2 steps\n\nInput: n = 3\nOutput: 3\nExplanation: There are three ways to climb to the top.\n1. 1 step + 1 step + 1 step\n2. 1 step + 2 steps\n3. 2 steps + 1 step",
+      "starterCode": "class Solution:\n    def climbStairs(self, n):\n        # Write your solution here.\n        pass\n\n\ndef solve(n):\n    return Solution().climbStairs(n)\n",
+      "constraints": [
+        "1 <= n <= 45"
+      ],
+      "hint": "To reach nth step, what could have been your previous steps? (Think about the step sizes)",
+      "revision": "Trace a failing example, review the topic, then retry a distinct solution.",
+      "tests": [
+        {
+          "args": [
+            2
+          ],
+          "expected": 2
+        },
+        {
+          "args": [
+            3
+          ],
+          "expected": 3
+        }
+      ],
+      "validator": "exact",
+      "sourceUrl": "https://leetcode.com/problems/climbing-stairs/",
+      "testProvenance": "Imported visible examples; not LeetCode hidden tests"
+    },
+    {
+      "id": "lc-best-time-to-buy-and-sell-stock",
+      "title": "Best Time to Buy and Sell Stock",
+      "topic": "arrays",
+      "difficulty": "Easy",
+      "mode": "function",
+      "description": "You are given an array prices where prices[i] is the price of a given stock on the ith day.\nYou want to maximize your profit by choosing a single day to buy one stock and choosing a different day in the future to sell that stock.\nReturn the maximum profit you can achieve from this transaction. If you cannot achieve any profit, return 0.\nExample 1:\nExample 2:\nConstraints:\n\nInput: prices = [7,1,5,3,6,4]\nOutput: 5\nExplanation: Buy on day 2 (price = 1) and sell on day 5 (price = 6), profit = 6-1 = 5.\nNote that buying on day 2 and selling on day 1 is not allowed because you must buy before you sell.\n\nInput: prices = [7,6,4,3,1]\nOutput: 0\nExplanation: In this case, no transactions are done and the max profit = 0.",
+      "starterCode": "class Solution:\n    def maxProfit(self, prices):\n        # Write your solution here.\n        pass\n\n\ndef solve(prices):\n    return Solution().maxProfit(prices)\n",
+      "constraints": [
+        "1 <= prices.length <= 105",
+        "0 <= prices[i] <= 104"
+      ],
+      "hint": "",
+      "revision": "Trace a failing example, review the topic, then retry a distinct solution.",
+      "tests": [
+        {
+          "args": [
+            [
+              7,
+              1,
+              5,
+              3,
+              6,
+              4
+            ]
+          ],
+          "expected": 5
+        },
+        {
+          "args": [
+            [
+              7,
+              6,
+              4,
+              3,
+              1
+            ]
+          ],
+          "expected": 0
+        }
+      ],
+      "validator": "exact",
+      "sourceUrl": "https://leetcode.com/problems/best-time-to-buy-and-sell-stock/",
+      "testProvenance": "Imported visible examples; not LeetCode hidden tests"
+    },
+    {
+      "id": "lc-maximum-subarray",
+      "title": "Maximum Subarray",
+      "topic": "dynamic_programming",
+      "difficulty": "Medium",
+      "mode": "function",
+      "description": "Given an integer array nums, find the subarray with the largest sum, and return its sum.\nExample 1:\nExample 2:\nExample 3:\nConstraints:\nFollow up: If you have figured out the O(n) solution, try coding another solution using the divide and conquer approach, which is more subtle.\n\nInput: nums = [-2,1,-3,4,-1,2,1,-5,4]\nOutput: 6\nExplanation: The subarray [4,-1,2,1] has the largest sum 6.\n\nInput: nums = [1]\nOutput: 1\nExplanation: The subarray [1] has the largest sum 1.\n\nInput: nums = [5,4,-1,7,8]\nOutput: 23\nExplanation: The subarray [5,4,-1,7,8] has the largest sum 23.",
+      "starterCode": "class Solution:\n    def maxSubArray(self, nums):\n        # Write your solution here.\n        pass\n\n\ndef solve(nums):\n    return Solution().maxSubArray(nums)\n",
+      "constraints": [
+        "1 <= nums.length <= 105",
+        "-104 <= nums[i] <= 104"
+      ],
+      "hint": "",
+      "revision": "Trace a failing example, review the topic, then retry a distinct solution.",
+      "tests": [
+        {
+          "args": [
+            [
+              -2,
+              1,
+              -3,
+              4,
+              -1,
+              2,
+              1,
+              -5,
+              4
+            ]
+          ],
+          "expected": 6
+        },
+        {
+          "args": [
+            [
+              1
+            ]
+          ],
+          "expected": 1
+        },
+        {
+          "args": [
+            [
+              5,
+              4,
+              -1,
+              7,
+              8
+            ]
+          ],
+          "expected": 23
+        }
+      ],
+      "validator": "exact",
+      "sourceUrl": "https://leetcode.com/problems/maximum-subarray/",
+      "testProvenance": "Imported visible examples; not LeetCode hidden tests"
+    },
+    {
+      "id": "lc-longest-common-prefix",
+      "title": "Longest Common Prefix",
+      "topic": "strings",
+      "difficulty": "Easy",
+      "mode": "function",
+      "description": "Write a function to find the longest common prefix string amongst an array of strings.\nIf there is no common prefix, return an empty string \"\".\nExample 1:\nExample 2:\nConstraints:\n\nInput: strs = [\"flower\",\"flow\",\"flight\"]\nOutput: \"fl\"\n\nInput: strs = [\"dog\",\"racecar\",\"car\"]\nOutput: \"\"\nExplanation: There is no common prefix among the input strings.",
+      "starterCode": "class Solution:\n    def longestCommonPrefix(self, strs):\n        # Write your solution here.\n        pass\n\n\ndef solve(strs):\n    return Solution().longestCommonPrefix(strs)\n",
+      "constraints": [
+        "1 <= strs.length <= 200",
+        "0 <= strs[i].length <= 200",
+        "strs[i] consists of only lowercase English letters if it is non-empty."
+      ],
+      "hint": "",
+      "revision": "Trace a failing example, review the topic, then retry a distinct solution.",
+      "tests": [
+        {
+          "args": [
+            [
+              "flower",
+              "flow",
+              "flight"
+            ]
+          ],
+          "expected": "fl"
+        },
+        {
+          "args": [
+            [
+              "dog",
+              "racecar",
+              "car"
+            ]
+          ],
+          "expected": ""
+        }
+      ],
+      "validator": "exact",
+      "sourceUrl": "https://leetcode.com/problems/longest-common-prefix/",
+      "testProvenance": "Imported visible examples; not LeetCode hidden tests"
+    },
+    {
+      "id": "lc-valid-anagram",
+      "title": "Valid Anagram",
+      "topic": "strings",
+      "difficulty": "Easy",
+      "mode": "function",
+      "description": "Given two strings s and t, return true if t is an anagram of s, and false otherwise.\nExample 1:\nExample 2:\nConstraints:\nFollow up: What if the inputs contain Unicode characters? How would you adapt your solution to such a case?\n\nInput: s = \"anagram\", t = \"nagaram\"\nOutput: true\n\nInput: s = \"rat\", t = \"car\"\nOutput: false",
+      "starterCode": "class Solution:\n    def isAnagram(self, s, t):\n        # Write your solution here.\n        pass\n\n\ndef solve(s, t):\n    return Solution().isAnagram(s, t)\n",
+      "constraints": [
+        "1 <= s.length, t.length <= 5 * 104",
+        "s and t consist of lowercase English letters."
+      ],
+      "hint": "",
+      "revision": "Trace a failing example, review the topic, then retry a distinct solution.",
+      "tests": [
+        {
+          "args": [
+            "anagram",
+            "nagaram"
+          ],
+          "expected": true
+        },
+        {
+          "args": [
+            "rat",
+            "car"
+          ],
+          "expected": false
+        }
+      ],
+      "validator": "exact",
+      "sourceUrl": "https://leetcode.com/problems/valid-anagram/",
+      "testProvenance": "Imported visible examples; not LeetCode hidden tests"
+    }
+  ]
+}
