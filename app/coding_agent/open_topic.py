@@ -16,6 +16,13 @@ from app.coding_agent.code_runner import BehavioralTestCase, ControlledCodeRunne
 from app.coding_agent.task_generator import CodingTaskGenerator
 
 
+def exercise_signature(exercise):
+    # Ignore cosmetic titles/test names: renaming an identical contract is not a new exercise.
+    data=[(t.function_name,t.args,t.expected_output,t.output_mode) for t in exercise.test_cases]
+    return hashlib.sha256(json.dumps(data,sort_keys=True,allow_nan=False).encode()).hexdigest()
+
+
+
 @dataclass
 class OpenTopicTask(CodingTask):
     progressive_hints: list[str] = field(default_factory=list)
@@ -181,12 +188,12 @@ class OpenTopicGenerator:
         )
         return response.text
 
-    def generate(self, topic, difficulty, language="Python"):
+    def generate(self, topic, difficulty, language="Python", *, context="", avoid_signature=None, avoid_title=None):
         topic = normalize_topic(topic)
         require_python(language)
         if difficulty not in {"easy", "medium", "hard"}:
             raise ValueError("Invalid difficulty.")
-        feedback = ""
+        feedback = str(context)[:4000]
         for attempt in range(self.max_attempts):
             try:
                 raw = self._request(topic, difficulty, feedback)
@@ -194,10 +201,14 @@ class OpenTopicGenerator:
                     if len(raw) > 60000:
                         raise ValueError("Provider response exceeds 60,000 characters.")
                     raw = json.loads(raw)
-                return validate_package(raw, topic, difficulty, self.runner)
+                exercise=validate_package(raw, topic, difficulty, self.runner)
+                if avoid_signature:
+                    if exercise_signature(exercise)==avoid_signature or (avoid_title and exercise.task.title.casefold()==avoid_title.casefold()):
+                        raise ValueError('The candidate repeats the previous task.')
+                return exercise
             except Exception:
                 # Never expose provider exceptions: they can contain credentials/URLs.
-                feedback = "Candidate was unavailable or failed bounded structural/behavioral validation."
+                feedback = str(context)[:4000]+" Candidate was unavailable, repeated a previous task, or failed bounded structural/behavioral validation. Return a different valid task."
         raise PackageGenerationError(f"No validated exercise after {self.max_attempts} attempt(s). "
                                      "Your previous exercise and CACM state are preserved. "
                                      "Retry explicitly or use the curated topic bank.")

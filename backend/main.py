@@ -25,6 +25,9 @@ class Query(BaseModel): text:str=Field(min_length=1,max_length=8000)
 class Code(BaseModel): code:str=Field(max_length=100000)
 class ReviewDraft(Code): context:str=Field(default='',max_length=8000)
 class Answer(BaseModel): answer:str=Field(min_length=1,max_length=20000); question_id:str|None=None
+class CodingRecommendationRequest(BaseModel):
+    recommendation_id:str=Field(min_length=64,max_length=64)
+    code:str|None=Field(default=None,max_length=100000)
 class Practice(BaseModel): count:int=Field(default=3,ge=1,le=10)
 class Search(BaseModel): topic:str=Field(min_length=1,max_length=500); target:int=Field(default=20,ge=1)
 class Selection(BaseModel): ids:list[str]=Field(max_length=200); selected:bool=True
@@ -131,6 +134,9 @@ def create_app(application=None):
         return mutate(identity,x_revision,action)
     @api.post('/api/students/{identity}/code')
     def submit(identity:str,body:Code,x_revision:int|None=Header(default=None)):return mutate(identity,x_revision,lambda s:service.code_submit(s,body.code))
+    @api.post('/api/students/{identity}/coding/recommended-practice')
+    def recommended_practice(identity:str,body:CodingRecommendationRequest,x_revision:int|None=Header(default=None)):
+        return mutate(identity,x_revision,lambda s:service.start_recommended_coding(s,body.recommendation_id,body.code))
     @api.post('/api/students/{identity}/hint')
     def hint(identity:str,body:Code,x_revision:int|None=Header(default=None)):return mutate(identity,x_revision,lambda s:service.hint(s,body.code))
     @api.post('/api/students/{identity}/review')

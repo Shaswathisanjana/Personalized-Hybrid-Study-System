@@ -59,7 +59,9 @@ class Application:
         from app.learning_agent.study_planner import LearningStudyPlanner
         study_plan=LearningStudyPlanner().create_plan(student,engine,concept) if concept else None
         session=visible_practice(s)
-        output=public(dict(student=student,plan=plan,clarification=s.get('journey_clarification'),lesson=lesson,
+        from backend.coding_recommendations import recommend
+        recommendation=recommend(s)
+        output=public(dict(student=student,plan=plan,coding_recommendation=recommendation,coding_practice_focus=s.get('advanced_coding_practice_focus'),clarification=s.get('journey_clarification'),lesson=lesson,
             exercise=s.get('advanced_coding_exercise'),code=s.get('advanced_coding_editor',''),
             hints=s.get('advanced_coding_hint_history',[]),coding_result=s.get('advanced_coding_submission_record'),
             review=s.get('advanced_coding_guided_result'),coding_execution=s.get('advanced_coding_execution_preview'),coding_review_error=s.get('advanced_coding_review_error'),coding_saved_drafts=s.get('advanced_coding_topic_drafts',{}),code_review=s.get('standalone_code_review'),practice=session,feedback=s.get('practice_last_outcome') if session else None,
@@ -68,6 +70,7 @@ class Application:
             conflicts=engine.active_conflicts,evidence=engine.evidence_store.get_all_evidence(),
             observation=observation,study_plan=study_plan,progress=s['learning_progress_tracker']._records,
             pending=s.get('_assessment_pending'),revision=s['_persistence_revision']))
+        if output.get('exercise'):output['exercise'].pop('reference_code',None)
         for question in ((output.get('practice') or {}).get('current_question'),(output.get('diagnostic') or {}).get('question'),output.get('research_question')):
             if isinstance(question,dict):
                 question.pop('correct_answer',None);question.pop('expected_answer',None);question.pop('explanation',None)
@@ -126,6 +129,10 @@ class Application:
         action=observe_action(workflow,topic)
         curated=StudentJourneyService.coding_concept(topic)
         exercise=(get_verified_exercise(curated,action.difficulty) if curated else OpenTopicGenerator(max_attempts=2).generate(topic,action.difficulty,'Python'))
+        self.install_coding(s,exercise,workflow,topic)
+    def install_coding(self,s,exercise,workflow,topic):
+        from app.coding_agent.submission_controller import CodingSubmissionController
+        from app.coding_agent.adaptive_hint_coordinator import MisconceptionAwareHintCoordinator
         previous=s.get('advanced_coding_exercise')
         previous_code=s.get('advanced_coding_editor','')
         if previous and previous_code.strip() and previous_code!=previous.task.starter_code:
@@ -135,8 +142,32 @@ class Application:
             advanced_coding_editor=exercise.task.starter_code,advanced_coding_hint_history=[],
             advanced_coding_hint_engine=MisconceptionAwareHintCoordinator(),
             advanced_coding_controller=CodingSubmissionController(workflow,exercise))
-        for key in ('advanced_coding_submission_record','advanced_coding_submission_source','advanced_coding_guided_result','advanced_coding_execution_preview','advanced_coding_review_error'):
+        for key in ('advanced_coding_submission_record','advanced_coding_submission_source','advanced_coding_guided_result','advanced_coding_execution_preview','advanced_coding_review_error','advanced_coding_practice_focus'):
             s.pop(key,None)
+    def start_recommended_coding(self,s,recommendation_id,code=None):
+        from backend.coding_recommendations import recommend,exercise_signature
+        from app.coding_agent.open_topic import OpenTopicGenerator
+        from app.coding_agent.verified_exercises import get_verified_exercise
+        recommendation=recommend(s)
+        if not recommendation or recommendation['id']!=recommendation_id:
+            raise ValueError('This recommendation is no longer current. Refresh the evaluated activity.')
+        if not recommendation['can_start']:raise ValueError('Resolve the cognitive conflict with the diagnostic first.')
+        if code is not None:s['advanced_coding_editor']=code;save_state(s)
+        exercise=s['advanced_coding_exercise'];workflow=s['advanced_coding_controller'].workflow
+        if recommendation['mode']=='retry':
+            for key in ('advanced_coding_submission_record','advanced_coding_guided_result','advanced_coding_review_error','advanced_coding_execution_preview'):s.pop(key,None)
+        else:
+            if recommendation['mode']=='catalogue':
+                exercise=get_verified_exercise(recommendation['topic'],recommendation['difficulty'])
+            else:
+                context='Choose a different problem on the SAME topic, not a renamed copy. Previous title: '+exercise.task.title+'. Previous specification: '+exercise.task.description[:1400]+'. Practice focus: '+' '.join(recommendation['focus'])
+                exercise=OpenTopicGenerator(max_attempts=2).generate(recommendation['topic'],recommendation['difficulty'],'Python',context=context,avoid_signature=exercise_signature(exercise),avoid_title=exercise.task.title)
+            self.install_coding(s,exercise,workflow,recommendation['topic'])
+        s['advanced_coding_practice_focus']=recommendation
+        step=s['journey_workspace']['steps'][s['journey_workspace']['index']]
+        from app.orchestrator.study_workspace import evidence_count
+        step.update(status='ready',baseline=evidence_count(s,'coding',s['journey_workspace']['concept']))
+        save_state(s)
     def code_submit(self,s,code):
         controller=s.get('advanced_coding_controller')
         if controller is None:raise ValueError('Prepare a coding exercise first.')
