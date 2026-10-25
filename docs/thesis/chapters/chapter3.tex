@@ -1,0 +1,106 @@
+\section{Introduction}
+PHSS is organised as a browser interface around reusable Python services. The application separates presentation, orchestration, specialist actions, cognitive evidence and storage. This separation matters because a user-interface transition must not silently become a learning assessment. It also allows the common query input and direct agent buttons to enter the same workflows.
+
+The deployed local application serves the compiled frontend and API from a FastAPI process. React and TypeScript manage the visible workspace. FastAPI validates requests and calls the application service, which loads a profile-owned state snapshot and invokes the existing Python modules. SQLite stores supported state and research material. External language-model and academic-search services remain outside this persistence boundary.
+
+\section{Overall Architecture}
+Figure~\ref{fig:architecture} shows the main relationships. CACM is a shared cognitive layer, not a fourth specialist agent. The agents communicate through structured outputs, shared services and stored evidence rather than through an unrestricted conversation between independent chatbots.
+
+\begin{figure}[htbp]\centering
+\begin{tikzpicture}[node distance=0.65cm and 0.4cm,box/.style={draw,rounded corners,align=center,font=\small,minimum height=0.9cm,text width=4.2cm},arr/.style={-{Latex},thick}]
+\node[box,fill=green!8](ui){React / TypeScript\\Unified student workspace};
+\node[box,below=of ui](api){FastAPI application service\\Validation, profile and revision checks};
+\node[box,below=of api](orch){Orchestrator\\Route, observe and bounded plan};
+\node[box,below=of orch,text width=3.0cm](code){Coding Agent\\Exercise, tests and review};
+\node[box,left=of code,text width=3.0cm](learn){Learning Agent\\Lesson and practice};
+\node[box,right=of code,text width=3.0cm](research){Research Agent\\Retrieval and source analysis};
+\node[box,below=1.0cm of code,text width=6.0cm,fill=blue!6](cacm){Shared CACM\\Assessed evidence, misconceptions and conflicts};
+\node[box,below=of cacm,text width=6.0cm](db){SQLite persistence\\Profile state, receipts and research collections};
+\draw[arr](ui)--(api);\draw[arr](api)--(orch);
+\draw[arr](orch)--(code);\draw[arr](orch)-|(learn);\draw[arr](orch)-|(research);
+\draw[arr](code)--(cacm);\draw[arr](learn)|-(cacm);\draw[arr](research)|-(cacm);
+\draw[arr](cacm)--(db);
+\end{tikzpicture}
+\caption{Application architecture. Agent-to-CACM arrows denote assessed evidence; ordinary content generation does not update mastery.}\label{fig:architecture}
+\end{figure}
+
+\section{Responsibilities of the Main Layers}
+The frontend owns navigation, input controls, the embedded editor and rendering of returned state. It shows the active agent, but the student does not have to select one before asking a question. The backend service owns the connection between a request and a real workflow. The orchestrator interprets intent, identifies a concept, reads cognitive observations and prepares the bounded sequence.
+
+Each agent supplies domain-specific behaviour. The Learning Agent prepares explanations, questions and feedback. The Coding Agent prepares tasks, assesses original submissions and chooses follow-up practice. The Research Agent retrieves academic records and analyses available source material. Their integration adapters translate supported assessment outcomes into the common evidence format. The central cognitive engine validates ownership, records evidence, updates estimates and detects disagreement.
+
+\section{Student and Concept State}
+For a profile $u$ and concept $c$, the state can be described as
+\begin{equation}
+S_{u,c}=(m,q,n,H,E,A),
+\end{equation}
+where $m$ is estimated mastery, $q$ is the confidence indicator, $n$ is the accepted-attempt count, $H$ contains misconception hypotheses, $E$ denotes assessment evidence and $A$ represents active conflicts. This notation summarises the implemented objects; it is not an additional trained model.
+
+The code initialises a previously unseen concept with mastery 0.5, confidence 0 and zero attempts. Policies explicitly check the absence of attempts, so the neutral prior does not justify advanced practice. Concept normalisation reduces accidental separation caused by case or recognised aliases. It is not a universal semantic ontology: unrelated or differently phrased concepts cannot always be assumed equivalent.
+
+Misconception hypotheses retain more information than a plain error label. They can record support, contradiction, status and source agents. This allows the system to distinguish a confirmed concern from a hypothesis that still needs verification. A displayed misconception remains an inference from evaluated work, not a clinical or permanent judgement about the student.
+
+\section{Assessment Evidence}
+The common evidence object includes the student identifier, concept name, source agent, evidence type, performance, normalised difficulty, reliability, detected misconceptions, timestamp and evidence identifier. Numeric inputs are validated, and the cognitive engine checks that the evidence belongs to the student whose model is being updated.
+
+This structure is the main communication contract between specialist assessment and CACM. A question evaluator and a coding evaluator do not have to return identical domain-specific feedback. They must provide a supported assessment that can be adapted into this common contract. Source-agent identity remains available so that later conflict detection can compare observations from different activities.
+
+Table~\ref{tab:evidence-boundary} records the boundary used throughout the application. It prevents the system's own productivity from being confused with a student's learning.
+\begin{table}[htbp]\centering\small
+\caption{Actions and their relationship to mastery evidence}\label{tab:evidence-boundary}
+\begin{tabular}{P{0.53\textwidth}P{0.38\textwidth}}\toprule
+Action & Creates mastery evidence?\\\midrule
+Open a lesson or navigate to another activity & No\\
+Generate a question without answering it & No\\
+Submit a supported learning answer for evaluation & Yes, through the assessment path\\
+Run an original coding submission through assessment & Yes, after accepted evaluation\\
+Obtain an AI correction or test that correction & No student mastery credit\\
+Search papers, upload PDFs or analyse source excerpts & No\\
+Export a research report & No\\
+Submit an evaluated research-comprehension answer & Yes, through the assessment path\\
+Start recommended coding practice & No\\\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Implemented Mastery Update}
+The mastery engine applies a bounded weighted update. For an accepted evidence event, its effective weight is
+\begin{equation}\label{eq:weight}
+w_t=r_t\left(0.5+0.5d_t\right).
+\end{equation}
+The updated mastery is
+\begin{equation}\label{eq:mastery}
+m_{t+1}=\operatorname{clip}_{[0,1]}\left(m_t+w_t(p_t-m_t)\right).
+\end{equation}
+The implementation rounds the stored mastery to three decimal places. It increases the attempt count by one and updates confidence as
+\begin{equation}\label{eq:confidence}
+q_{t+1}=\min\left(1,q_t+0.1w_t\right),
+\end{equation}
+again storing a rounded value. These equations describe the code in \module{app/cognitive/mastery_engine.py}.
+
+For illustration, if $m_t=0.5$, $p_t=1$, $r_t=0.8$ and $d_t=0$, then $w_t=0.4$ and the resulting mastery is 0.7. This is an arithmetic example, not a measured student result. It also explains why the current coding policy can move directly from easy to hard after sufficiently strong evidence: the policy reads the updated estimate rather than requiring a fixed one-level transition.
+
+Confidence in Equation~\ref{eq:confidence} is an accumulating software indicator. It is not a calibrated probability that the student has mastered the topic. Its monotonic increase with accepted evidence is a limitation worth stating because repeated observations do not necessarily make a pedagogical judgement correct.
+
+\section{Cross-Agent Conflict Model}
+Conflict detection compares evidence for the same student and normalised concept when the source agents differ. The performance difference is
+\begin{equation}
+\Delta=|p_a-p_b|.
+\end{equation}
+With the default detector, a difference below 0.35 is not flagged. A difference of at least 0.35 produces a conflict, and at least 0.60 is classified as high severity. These are configured engineering thresholds, not empirically validated educational cut-offs.
+
+The resulting conflict does not prove that either agent is wrong. A conceptual question and a programming exercise can demand different abilities. The application uses the discrepancy to request focused diagnostic evidence and temporarily restrict normal progression. This is a more cautious response than hiding the disagreement inside an average.
+
+\section{Bounded Study Plan}
+A workspace plan contains a profile owner, request identifier, original query, concept, ordered steps and current index. Supported steps are Learning, Coding and Research. Validation limits the sequence to the supported agent set and prevents repeated agent entries in the same bounded plan. The plan is therefore not an unrestricted autonomous task graph.
+
+Each step records whether it has been prepared, its status, a baseline evidence count and any recoverable error. The distinction between \textit{assessed} and \textit{visited without assessment} is important. Advancing to another screen can finish a navigation step, but it does not establish understanding. A new accepted assessment after the step baseline is needed for the assessed label.
+
+\section{Persistence Model}
+The SQLite store contains profile records, revisioned state snapshots, research documents, academic-source records, search sessions and report preferences. Recovery reconstructs supported Python state through explicit codecs and session adapters. Assessment receipts help identify work that was already applied to CACM.
+
+A browser profile selection is not authentication. Profile ownership checks prevent accidental cross-profile mixing in the supported local application, but they do not protect an exposed server from an unauthorised person who can access its APIs. This distinction informs the deployment scope in Chapter~7.
+
+\section{Problem Formulation and Invariants}
+The operational objective is to choose a useful next action from the current request, plan and evidence while preserving a small set of invariants. Evidence must belong to the active student. A repeated completed assessment must not increase mastery twice. Source coverage must remain visible. Provider failure must not invent a successful assessment. Refresh must recover committed work rather than create new evidence.
+
+These requirements can be expressed as a state-transition constraint. If an operation does not accept a new evaluated student response, then the stored evidence set and mastery must remain unchanged by that operation. Testing this constraint is more informative than assigning an unsupported percentage of the application's code to ``agentic AI.''

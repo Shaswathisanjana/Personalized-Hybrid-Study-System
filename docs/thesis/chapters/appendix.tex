@@ -1,0 +1,72 @@
+\section{Implementation Baseline}
+The implementation described in this thesis was inspected in the separate PHSS web-application project. Its source baseline is commit \module{40e5a88} on branch \module{phss-web-app}. Thesis-only changes follow that baseline. The application repository is \url{https://github.com/Shaswathisanjana/Personalized-Hybrid-Study-System}.
+
+The frontend uses React components~\cite{reactdocs} and TypeScript, built with Vite. FastAPI~\cite{fastapidocs} exposes the Python services, and Uvicorn runs the local server. PDF extraction uses pypdf~\cite{pypdfdocs}, academic retrieval uses the existing OpenAlex provider~\cite{openalexdocs}, and Word export uses python-docx~\cite{docxdocs}. These citations identify supporting tools; they do not imply that their maintainers endorse the project.
+
+\section{Source Traceability}
+\begin{longtable}{P{0.37\textwidth}P{0.54\textwidth}}
+\caption{Principal implementation locations used in the thesis}\label{tab:source-map}\\
+\toprule Area & Source location\\\midrule\endfirsthead
+\toprule Area & Source location\\\midrule\endhead
+HTTP routes and input validation & \module{backend/main.py}\\
+Workflow integration & \module{backend/service.py}\\
+Semantic routing and clarification & \module{app/orchestrator/query_router.py}\\
+Bounded workspace and advancement & \module{app/orchestrator/study_workspace.py}\\
+Shared student model & \module{app/cognitive/models.py}\\
+Mastery update & \module{app/cognitive/mastery_engine.py}\\
+Cross-agent conflicts & \module{app/cognitive/conflict_detector.py}\\
+Assessment evidence integration & \module{app/cognitive/cognitive_engine.py}\\
+Adaptive learning question policy & \module{app/learning_agent/practice_policy.py}\\
+Topic-specific web practice binding & \module{backend/practice_context.py}\\
+Coding action policy & \module{app/coding_agent/agent.py}\\
+Coding execution and evaluation & \module{app/coding_agent/evaluator.py}\\
+Generated coding package validation & \module{app/coding_agent/open_topic.py}\\
+Coding follow-up recommendation & \module{backend/coding_recommendations.py}\\
+PDF collection bounds & \module{app/research_agent/collection_models.py}\\
+Research processing & \module{app/research_agent/collection_service.py}\\
+Web report readiness and writing & \module{backend/research_reports.py}\\
+Conservative report synthesis & \module{backend/report_synthesis.py}\\
+Profile snapshots and research storage & \module{app/persistence/sqlite_store.py}\\
+Supported session recovery & \module{app/persistence/session_recovery.py}\\
+Student interface & \module{frontend/src/App.tsx}\\\bottomrule
+\end{longtable}
+
+\section{Default PDF Processing Parameters}
+\begin{table}[htbp]\centering\small
+\caption{Source defaults for PDF collection processing}\label{tab:pdf-defaults}
+\begin{tabular}{P{0.54\textwidth}P{0.34\textwidth}}\toprule
+Parameter & Default\\\midrule
+Maximum single PDF size & 20 MiB\\
+Maximum documents & 100\\
+Maximum collection bytes & 200 MiB\\
+Maximum PDF pages & 300\\
+Maximum extracted characters & 1,000,000\\
+Chunk characters & 10,000\\
+Minimum usable text characters & 80\\
+Documents extracted per batch & 3\\
+Chunks analysed per batch & 6\\
+Extraction timeout & 45 seconds\\
+Provider timeout field & 60 seconds\\
+Worker memory limit field & 512 MiB\\\bottomrule
+\end{tabular}
+\end{table}
+These are configured defaults rather than universal platform guarantees. Environment overrides and operating-system support affect runtime behaviour. They should be checked in the application's displayed settings when reproducing an execution.
+
+\section{Reproducing Offline Verification}
+From the web-application root, the backend regression command is:
+\begin{verbatim}
+.\.venv\Scripts\python.exe -B -m pytest backend/tests -q
+\end{verbatim}
+Selected existing suites are run through \module{tools/evaluate_offline.py} with the exact case names \module{test_open_topic_coding}, \module{test_verified_coding_catalog} and \module{test_persistence_streamlit}. The last name reflects the history of a shared recovery test suite; it is not an evaluation of a second primary application in this thesis.
+
+The frontend build command is \texttt{npm.cmd --prefix frontend run build}. From the frontend directory, Playwright can run the selected files \module{coding-recommendations.spec.ts}, \module{coding-workflow.spec.ts}, \module{learning-quiz.spec.ts}, \module{loading.spec.ts}, \module{agent-buttons.spec.ts} \module{topic-options.spec.ts} and \module{progress.spec.ts}. The offline fixture server is configured in \module{frontend/playwright.config.ts}.
+
+\section{Demonstration Procedure}
+A demonstration can begin with ``Teach me recursion,'' continue to an adaptive answer, and show the explicit question difficulty. A second request can ask for an Arrays coding problem. After an original submission is evaluated, the presenter can inspect its supplied-test outcomes and next-practice recommendation. Refresh should recover the saved activity.
+
+For research, the presenter can request academic papers, select results or upload usable PDFs, process a bounded batch and inspect analysis readiness before export. The demonstration must identify whether it uses controlled fixtures or live providers. Fixture screenshots illustrate interface behaviour and must not be presented as results from real students.
+
+\section{Submission Checklist}
+Before formal submission, confirm the final approved title, guide's name, authorised countersignatory, examination date, institutional logo and required declaration wording. Review every chapter against the final code baseline. Verify the reference formatting in the compiled PDF, replace any remaining metadata placeholders and obtain institutional approval for the certificate text.
+
+A similarity checker has not been run as part of this preparation. Original project-specific wording and citations reduce inappropriate copying, but no fixed similarity percentage can be guaranteed. The team remains responsible for reviewing the work, acknowledging permitted assistance and following its institution's submission policy.

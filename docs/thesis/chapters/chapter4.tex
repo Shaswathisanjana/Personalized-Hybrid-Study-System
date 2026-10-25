@@ -1,0 +1,86 @@
+\section{Overall Framework}
+The methodology treats an educational request as the start of a stateful activity, not as a prompt that ends when a paragraph is generated. The application interprets the request, observes the relevant student state, creates a bounded plan and invokes the appropriate workflow. When the student responds, the assessment result can change the next action. Persistence connects these stages across separate browser requests.
+
+The principal loop is shown in Figure~\ref{fig:loop}. The arrows represent application control and observable results. They do not imply that every stage is decided by a language model. Semantic routing and content generation use model services, whereas evidence validation, difficulty policies, revision checks and duplicate protection use explicit code.
+
+\begin{figure}[htbp]\centering
+\begin{tikzpicture}[node distance=0.65cm,box/.style={draw,rounded corners,align=center,font=\small,text width=8.1cm,minimum height=0.7cm},arr/.style={-{Latex},thick}]
+\node[box,fill=green!8](o){Observe request, active plan and shared CACM};
+\node[box,below=of o](r){Interpret intent and select a bounded activity plan};
+\node[box,below=of r](a){Act through a specialist workflow and its tools};
+\node[box,below=of a](h){Pause for the student's actual response where required};
+\node[box,below=of h](e){Evaluate the response and accept supported evidence};
+\node[box,below=of e](u){Update CACM, checkpoint state and choose follow-up};
+\draw[arr](o)--(r);\draw[arr](r)--(a);\draw[arr](a)--(h);\draw[arr](h)--(e);\draw[arr](e)--(u);
+\draw[arr](u.east)--++(1,0)|-(o.east);
+\end{tikzpicture}
+\caption{Implemented agentic control loop with student interaction as an explicit boundary.}\label{fig:loop}
+\end{figure}
+
+\section{Natural-Language Entry and Semantic Routing}
+The primary screen asks, ``What would you like help with today?'' A request is sent to the backend, where the existing query router produces a structured route. Its fields include the concept, selected agents, intent, reason and workflow mode. A coding request can select assessed practice or review of existing code. A research request can select academic search or the existing collection.
+
+The primary router uses a language-model service to interpret meaning. A bounded local fallback is available for recognised explicit requests when semantic routing is unavailable. That fallback is a recovery measure rather than a replacement for the semantic architecture. It must not be described as evidence that every arbitrary request can be understood offline.
+
+An ambiguous request can return a clarification question. The saved clarification is associated with the student profile and original request. This avoids choosing an unrelated task merely to show a result. The application also preserves the context needed to interpret a later clarification reply.
+
+\section{Observation and Planning}
+After routing, the orchestrator reads a concept observation from the shared student and cognitive engine. This includes assessed attempts, mastery and confidence estimates, misconception information and conflict status. The route and observation inform the bounded study sequence. A combined request such as learning a concept followed by coding practice can produce an ordered Learning--Coding plan.
+
+Planning is distinct from execution. The system saves the plan before deferred provider work so that interruption does not erase its intent. Preparing a coding step binds the selected concept and exercise controls; preparing a research step binds the topic and collection/search mode. These operations do not themselves assess the student.
+
+The present plan is deliberately limited. It does not schedule an arbitrary number of autonomous agents, execute indefinitely or complete student answers on the student's behalf. The bounded design makes progress, failure and recovery easier to inspect.
+
+\section{Specialist Actions and Tool Boundaries}
+Each specialist invokes services relevant to its task. Learning can request explanations, resource lookups and adaptive questions. Coding can load a verified exercise, validate a generated package and execute the student's original Python function against supplied tests. Research can retrieve actual academic records, extract PDF pages, analyse selected chunks and create a document.
+
+These actions produce different kinds of output. A lesson is content. A test report is behavioural evidence with a defined contract. An academic abstract is a retrieved source with limited coverage. An exported report is a derived artifact. The integration layer preserves these distinctions rather than collapsing them into a single conversation transcript.
+
+Tool invocation is also where important bounds are enforced. Input sizes, configured collection limits, candidate-generation attempts, execution timeouts and processing batches constrain work. When a bound prevents completion, the state remains explicit. A refusal or partial result is preferable to an invented complete result.
+
+\section{Assessment, Evidence and Replanning}
+The system pauses at points that require a genuine student response. A learning question waits for an answer; an exercise waits for original code; a research-comprehension activity waits for the student's interpretation. Assessment results enter their existing integration paths and may update CACM only after validation.
+
+Replanning occurs through the existing policy services. Adaptive practice chooses a subsequent question using the updated state and session performance. Coding next-practice decisions use the original submission result and current cognitive model. A conflict can replace ordinary progression with a diagnostic requirement. These are bounded local revisions to the activity, not evidence of a general autonomous planner that can solve any educational goal.
+
+The distinction is useful in demonstrations. The agentic behaviour is visible in a change of action justified by an observed result: a failed boundary-case test leads to revision guidance, or disagreement between conceptual and coding performance leads to diagnosis. Merely generating a new paragraph would not demonstrate that loop.
+
+\section{Communication Between Agents and CACM}
+The agents share the student's cognitive engine and model through Python service objects and persisted snapshots. They do not need direct access to each other's user-interface components. Learning and Coding evidence about the same normalised concept can be compared centrally, even though their original feedback formats differ.
+
+This architecture also clarifies the meaning of ``multi-agent.'' The project contains specialised decision and workflow modules with distinct responsibilities, coordinated by an orchestrator. It does not require separate operating-system processes for each agent or a debate between multiple foundation models. The web frontend displays the results of those services through the same student interface.
+
+\section{Checkpoints, Idempotency and Recovery}
+Long operations are checkpointed at meaningful boundaries. For example, an assessment request can be recorded as pending before provider-dependent evaluation begins. If the process fails after local code execution but before the full assessment completes, the application can display the execution evidence separately and offer recovery without claiming a completed cognitive update.
+
+Completed assessments have identifiers and receipts. An identical completed submission can return its cached result instead of changing mastery again. Snapshot revision checks detect a stale browser tab that attempts to overwrite newer state. These protections address different problems: duplicate work, interrupted work and competing saved versions.
+
+The coding recommendation adds its own current-state token. When the student clicks the recommendation, the backend recomputes the decision. A token tied to an earlier submission or topic is rejected. This prevents a stale recommendation card from loading unrelated practice after the student has moved on.
+
+\section{User Interface and Alternative Entry Paths}
+The common input remains the primary route into the system. Three direct agent buttons provide a convenient way to demonstrate or start a specialist activity. Learning and Coding entry controls support both a topic list and a typed topic. The direct controls reuse the same backend workflows and shared state; they do not create separate private mastery models.
+
+Lessons, the editor, academic search and collection controls appear within the study workspace. The active specialist is named so that the student can understand which workflow is handling the task. Supplementary structured details and topic controls use collapsed sections to avoid overwhelming the first view. The former professor-demo navigation was removed from the current application.
+
+\section{Failure-Aware Operation and Performance}
+The backend does not initialise every expensive workflow for every screen. In particular, Learning and Coding do not need to download research state simply to render. Independent learning-resource requests can run in parallel, while loading messages identify the operation that is still in progress. Timing headers support inspection of server work without inventing a performance improvement percentage.
+
+External services can still be slow, unavailable or rate limited. Explicit retry actions, saved drafts and partial research statuses make those failures manageable. The project has not established a service-level latency guarantee, a high-concurrency deployment profile or a live-provider availability rate.
+
+\section{Agentic Capability and Its Limits}
+Table~\ref{tab:agentic-capabilities} connects the agentic terminology to concrete implementation behaviour. It avoids treating the entire web application as an autonomous model.
+\begin{table}[htbp]\centering\small
+\caption{Observable agentic capabilities in PHSS}\label{tab:agentic-capabilities}
+\begin{tabular}{P{0.19\textwidth}P{0.42\textwidth}P{0.29\textwidth}}\toprule
+Stage & Implemented behaviour & Boundary\\\midrule
+Observe & Read concept evidence and current workflow & Stored estimates may be imperfect.\\
+Interpret & Semantic route with structured modes & Ambiguity can require clarification.\\
+Plan & Ordered, validated specialist steps & At most the supported bounded sequence.\\
+Act & Invoke content, tests, retrieval and extraction & Tools operate within configured limits.\\
+Evaluate & Assess actual student responses & AI-generated output earns no mastery.\\
+Update & Save evidence and apply cognitive rules & No trained knowledge-tracing model.\\
+Replan & Adapt questions, practice and diagnostics & Same-topic coding recommendations currently.\\\bottomrule
+\end{tabular}
+\end{table}
+
+The result is a hybrid agentic system: model-assisted interpretation and generation operate inside a deterministic application control structure. This is a defensible description of what the project does. Claiming that all decisions are autonomous, that all agents continuously self-improve or that the system has been educationally calibrated would go beyond the implementation.

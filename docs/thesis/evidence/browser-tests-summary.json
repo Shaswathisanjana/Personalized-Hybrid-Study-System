@@ -1,0 +1,76 @@
+{
+  "context": "Thesis preparation; offline provider fixtures; no real-student study",
+  "stats": {
+    "startTime": "2026-10-25T08:44:11.900Z",
+    "duration": 26644.191000000003,
+    "expected": 9,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "cases": [
+    {
+      "title": "three direct agent buttons enter real workflows without removing common input or saved quizzes",
+      "passed": true,
+      "results": [
+        "passed"
+      ]
+    },
+    {
+      "title": "evaluated coding leads to actual next practice and recovers after refresh",
+      "passed": true,
+      "results": [
+        "passed"
+      ]
+    },
+    {
+      "title": "coding chooser, actual submission and review work in the student interface",
+      "passed": true,
+      "results": [
+        "passed"
+      ]
+    },
+    {
+      "title": "learning quiz labels difficulty and follows current topic across refresh",
+      "passed": true,
+      "results": [
+        "passed"
+      ]
+    },
+    {
+      "title": "learning and coding skip research downloads while research still loads and recovers",
+      "passed": true,
+      "results": [
+        "passed"
+      ]
+    },
+    {
+      "title": "progress has an honest empty state and responsive dashboard",
+      "passed": true,
+      "results": [
+        "passed"
+      ]
+    },
+    {
+      "title": "assessed progress uses real evidence filters and collapsed details",
+      "passed": true,
+      "results": [
+        "passed"
+      ]
+    },
+    {
+      "title": "learning has a large topic dropdown and custom entry before and during lessons",
+      "passed": true,
+      "results": [
+        "passed"
+      ]
+    },
+    {
+      "title": "coding supports many grouped options and a genuinely unlisted custom topic",
+      "passed": true,
+      "results": [
+        "passed"
+      ]
+    }
+  ]
+}

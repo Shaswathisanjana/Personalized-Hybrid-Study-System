@@ -1,0 +1,114 @@
+% PHSS thesis. Structure follows the supplied reference; project prose is original.
+\documentclass[a4paper,12pt]{report}
+\usepackage[margin=0.8in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern,amsmath,amssymb,graphicx,setspace,booktabs,float,array,longtable}
+\usepackage[english]{babel}
+\usepackage[autostyle,english=american]{csquotes}
+\usepackage[font=small]{caption}
+\usepackage{cite,url,xcolor,tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,backgrounds}
+\usepackage[hidelinks]{hyperref}
+\onehalfspacing
+\emergencystretch=3em
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.15}
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.8}
+\renewcommand{\textfraction}{0.08}
+\renewcommand{\floatpagefraction}{0.65}
+\setcounter{totalnumber}{4}
+\graphicspath{{figures/}}
+\newcolumntype{P}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcommand{\module}[1]{{\small\path{#1}}}
+\input{metadata}
+\hypersetup{pdftitle={CACM-PHSS: A Multi-Agent Personalized Hybrid Study System},pdfauthor={PHSS project team}}
+\begin{document}
+\hypersetup{pageanchor=false}\pagenumbering{gobble}
+\input{chapters/frontmatter}
+\clearpage
+\pagenumbering{roman}\hypersetup{pageanchor=true}
+\tableofcontents
+\chapter*{Acknowledgements}
+\addcontentsline{toc}{chapter}{Acknowledgements}
+We thank our project advisor, \GuideName, for guidance during the development and review of this work. We also acknowledge the faculty and technical staff of \DepartmentName, \UniversityName, for their support.
+
+We acknowledge the researchers and open-source communities whose work made the implementation possible. The project brings together web development, cognitive modelling, language-model services, academic retrieval and software testing. These foundations are identified in the references and in the implementation discussion.
+
+We are grateful to the classmates, friends and family members who supported the project. The final names, institutional acknowledgements and signatures will be confirmed by the project team before submission.
+\vspace{1cm}
+\begin{flushright}\TeamNames\end{flushright}
+\clearpage
+\listoffigures
+\addcontentsline{toc}{chapter}{List of figures}
+\clearpage
+\listoftables
+\addcontentsline{toc}{chapter}{List of tables}
+\clearpage
+\chapter*{Abbreviations}
+\addcontentsline{toc}{chapter}{Abbreviations}
+\begin{longtable}{P{0.20\textwidth}P{0.73\textwidth}}
+AI & Artificial Intelligence\\
+API & Application Programming Interface\\
+AST & Abstract Syntax Tree\\
+BKT & Bayesian Knowledge Tracing\\
+CACM & Cross-Agent Cognitive Modeling\\
+DOCX & Office Open XML Word document format\\
+DOI & Digital Object Identifier\\
+HTTP & Hypertext Transfer Protocol\\
+ITS & Intelligent Tutoring System\\
+JSON & JavaScript Object Notation\\
+LLM & Large Language Model\\
+OCR & Optical Character Recognition\\
+PDF & Portable Document Format\\
+PHSS & Personalized Hybrid Study System\\
+RAG & Retrieval-Augmented Generation\\
+SQL & Structured Query Language\\
+UI & User Interface\\
+\end{longtable}
+\clearpage
+\chapter*{List of symbols}
+\addcontentsline{toc}{chapter}{List of symbols}
+\begin{longtable}{P{0.22\textwidth}P{0.71\textwidth}}
+$u$ & Student profile identifier\\
+$c$ & Normalised concept identity\\
+$m_t$ & Estimated concept mastery before evidence event $t$\\
+$q_t$ & Confidence indicator stored with the concept\\
+$n_t$ & Number of accepted assessment attempts\\
+$p_t$ & Performance recorded by the evaluator\\
+$r_t$ & Reliability attached to the evidence\\
+$d_t$ & Normalised activity difficulty used in evidence weighting\\
+$w_t$ & Effective evidence weight\\
+$E_{u,c}$ & Stored assessment evidence for student $u$ and concept $c$\\
+$\Delta$ & Difference between two cross-agent performance values\\
+$\tau$ & Conflict detection threshold\\
+$\pi$ & Existing rule-based activity-selection policy\\
+$P$ & Bounded ordered study plan\\
+$i$ & Index of the current activity in the plan\\
+\end{longtable}
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+\input{chapters/abstract}
+\clearpage
+\pagenumbering{arabic}
+\chapter{Introduction}\input{chapters/introduction}
+\chapter{Literature Review and Research Gap}\input{chapters/chapter2}
+\chapter{System Model and Problem Formulation}\input{chapters/chapter3}
+\chapter{Proposed Methodology}\input{chapters/chapter4}
+\chapter{Learning and Coding Agent Implementation}\input{chapters/chapter5}
+\chapter{Research Agent and Source-Grounded Reporting}\input{chapters/chapter6}
+\chapter{System Validation and Results}\input{chapters/chapter7}
+\chapter{Conclusion and Scope for Further Research}\input{chapters/conclusion}
+\appendix
+\chapter{Implementation Parameters, Reproducibility and Additional Tables}
+\input{chapters/appendix}
+\clearpage
+\renewcommand{\bibname}{References}
+\phantomsection\addcontentsline{toc}{chapter}{References}
+\bibliographystyle{ieeetr}
+\bibliography{mybib}
+\chapter*{List of Publications \\ \large(Based on the Research Work)}
+\addcontentsline{toc}{chapter}{List of Publications Based on the Research Work}
+Publication details have not been provided for this draft. The project team must confirm the publication status before submission. No publication claim is made here.
+\end{document}

@@ -1,0 +1,88 @@
+\section{Introduction}
+Evaluation was directed at the application's operational claims: entering the correct workflow, preserving student ownership, applying assessment evidence once, retaining source coverage and recovering saved work. These claims can be checked with deterministic tests. Educational effectiveness requires a different form of evaluation and is not inferred from software-test success.
+
+The results reported here concern the web application at the coding next-practice implementation baseline, commit \module{40e5a88}. The original development reports are retained in the repository. A further offline backend run was performed during thesis preparation, with its machine-readable output included in the accompanying evidence directory. The thesis-preparation rerun passed all 77 backend tests in 52.20 seconds and all nine selected browser tests in 26.6 seconds, including two dashboard checks. These overlap with the baseline suites and are not additional independent performance samples. Test executions are not student participants, and multiple test layers are not combined into an educational accuracy percentage.
+
+\section{Evaluation Setup}
+The backend suite uses temporary SQLite stores, synthetic profiles and controlled replacements at external provider boundaries. The real application service, cognitive state, persistence and supported code-execution paths remain in use. External network access is denied in these tests apart from the local addresses needed by the harness.
+
+Browser checks run the built React application against an explicit offline fixture server. Chrome automation interacts with actual controls, including Monaco code editing, submission buttons, topic selection and refresh. The fixture server substitutes predictable semantic routes, academic results and model responses. Consequently, these tests check application integration around the providers, not the live providers' ability to understand every arbitrary request.
+
+No paid live-provider run was used to support the results in Table~\ref{tab:test-results}. No real-student dataset, learning-gain experiment, usability questionnaire or longitudinal assessment is reported.
+
+\section{Recorded Test Results}
+\begin{table}[htbp]\centering\small
+\caption{Executed verification recorded for the implementation baseline}\label{tab:test-results}
+\begin{tabular}{P{0.47\textwidth}P{0.18\textwidth}P{0.25\textwidth}}\toprule
+Verification & Result & Interpretation\\\midrule
+Backend API and service regression suite & 77 passed & Includes 11 next-practice tests.\\
+Existing open-topic coding suite & 16 executions passed & Generated-package compatibility.\\
+Existing verified coding catalogue suite & 10 executions passed & Supplied exercise contracts.\\
+Existing persistence suite & 8 executions passed & Supported state recovery.\\
+Selected browser regression run & 7 passed & Actual interface interactions with fixtures.\\
+Final recommendation-browser recheck & 1 passed again & Repeat of one scenario, not a new independent case.\\
+Thesis-preparation browser rerun & 9 passed & Includes the seven paths and two dashboard checks.\\
+TypeScript and production frontend build & Passed & Build validity, not educational effectiveness.\\\bottomrule
+\end{tabular}
+\end{table}
+
+The backend run reported one existing Starlette/httpx deprecation warning. The frontend build reported the existing large Monaco-related chunk warning. Neither warning was hidden or represented as a failed functional test. The entire browser suite was not executed for the feature baseline, so no claim is made that every historical browser test passed.
+
+\section{Routing and Actual Workflow Entry}
+Tests verify that a learning request prepares a lesson and practice controls, a coding request prepares a real exercise package and editor, and a research request enters search or collection functionality. An ambiguous request preserves a contextual clarification without executing an unrelated specialist.
+
+The direct agent buttons are also exercised. They remain alternative entry points to the existing services. Their presence does not remove the common input, and moving between them must not erase another topic's supported unfinished quiz or introduce a separate cognitive record.
+
+These results support the claim that the interface is connected to backend workflows. They do not measure the semantic router's accuracy on an independently sampled collection of student language. A live routing evaluation would require labelled requests and a specified scoring method.
+
+\section{Learning-State and Quiz Validation}
+The learning checks verify question identity, actual difficulty labels, topic binding and assessment recovery. Switching from Recursion to Arrays must not show the former topic's question as the latter topic's practice. Returning to an unfinished topic restores its supported session. Refresh retains the current question identifier and accepted evidence.
+
+The tests also check that answering a question can update the student's assessed record, while opening the lesson or changing a topic does not. Repeated completed submissions remain idempotent. This validates a state-management property, not the pedagogical quality of every generated question or its scoring rubric.
+
+\section{Coding Evaluation and Recommendation Validation}
+The coding checks execute controlled original programs against actual supplied tests. They verify saved code, returned test outcomes, duplicate assessment protection and preservation of evidence when obtaining review feedback. Topic switching retains edited drafts instead of silently replacing them with new starter code.
+
+The next-practice checks cover absence of recommendations before assessment, successful transition to a different verified task, focused retry after failure, stale and foreign-profile token rejection, process-restart recovery, provider failure, repeated candidate rejection and generated-variant validation. Pending assessment and standalone review do not produce ordinary practice recommendations. A genuine cross-agent conflict blocks normal next-practice start until the existing diagnostic path is used.
+
+The browser scenario submits a correct Arrays solution, observes the recommendation, starts the actual policy-selected exercise and reloads the page. It compares saved student state and evidence before and after navigation. The key result is that opening the next task changes the activity but not mastery. Only a later evaluated student submission can provide new evidence.
+
+\section{Research Reliability and Export Checks}
+The backend research tests cover provider-response parsing, collections containing more than five sources, duplicate selections, profile isolation, actual PDF extraction and corrupted files. Report tests inspect readiness, partial coverage, references and the distinction between abstracts and full-text excerpts.
+
+A valid DOCX must be an actual readable document structure rather than text renamed with a Word extension. Tests check the exported package and supported content. Truthfulness checks ensure that empty or unprocessed selections cannot be represented as a completed analysis report. These checks do not establish that the source papers themselves are correct or that every accepted quotation has been interpreted perfectly.
+
+\section{Persistence and Refresh Recovery}
+Recovery is tested at both service and browser levels. A fresh application instance using the same test database simulates process restart. Reloading the browser checks restoration of visible activity. Saved drafts, questions, collections, recommendation focus and accepted evidence are checked in the relevant scenarios.
+
+These tests address an earlier weakness of in-memory-only interfaces: a browser refresh can create a new session unless important state has been committed to durable storage. PHSS now reconstructs supported state from profile-owned snapshots and research records. Recovery is bounded by what the codec and checkpoint paths actually save; it is not a claim that every arbitrary runtime object is serialised.
+
+\section{Requirement-to-Evidence Traceability}
+Table~\ref{tab:traceability} links major requirements to concrete verification areas. This makes the evaluation easier to audit than a single summary percentage.
+\begin{longtable}{P{0.32\textwidth}P{0.59\textwidth}}
+\caption{Requirement traceability for the implemented web system}\label{tab:traceability}\\
+\toprule Requirement & Verification area\\\midrule\endfirsthead
+\toprule Requirement & Verification area\\\midrule\endhead
+Automatic workflow entry & Backend route fixtures; browser agent-entry and workspace checks.\\
+Topic-specific adaptive quiz & Learning-topic backend tests and learning-quiz browser scenario.\\
+Original code assessment & Real runner tests, submission API and browser editor interaction.\\
+Evidence-based next practice & Eleven recommendation tests and browser transition/recovery scenario.\\
+Persistent research collection & Search, upload, duplicate and profile-isolation API tests.\\
+Grounded report readiness & Report flow, truthfulness, synthesis and reliability test modules.\\
+No mastery for navigation/generation & Evidence comparisons before and after non-assessment operations.\\
+Refresh and restart recovery & New service instance with the same test database; browser reload checks.\\
+Provider failure recovery & Controlled provider errors and retained original work.\\
+\bottomrule
+\end{longtable}
+
+\section{Discussion of Agentic Behaviour}
+The strongest evidence for agentic behaviour is the connection between observation and action. The system does not simply label a response ``Coding Agent.'' It invokes code-evaluation services and uses the result to choose a subsequent activity. Likewise, the research workflow observes extraction and analysis status before deciding whether an export is ready, partial or unavailable.
+
+This evidence supports a bounded hybrid-agentic description. Rule-based control is part of the design, and the student remains involved at assessment boundaries. No numerical ``agentic percentage'' is reported because there is no defined measurement method for dividing UI, persistence, policies and model calls into such a percentage.
+
+\section{Limitations and Threats to Validity}
+Controlled fixtures improve reproducibility but reduce exposure to live-provider variability. They cannot measure current search completeness, arbitrary topic support or the reliability of a changing model endpoint. The selected browser suite also covers representative paths rather than every possible interaction ordering.
+
+The mastery rule, confidence accumulation and difficulty thresholds have not been calibrated against real student outcomes. No control group, pre-test/post-test design or retention study was conducted. This prevents claims of demonstrated learning improvement, fairness across student groups or a validated mastery probability.
+
+Operational limits also remain. Local profiles are not secure authentication; Python execution is not a hardened public sandbox; PDF OCR is unavailable; and quotation validation cannot independently prove scientific interpretation. Load testing, accessibility auditing and a public multi-user security assessment remain future work. These limitations should accompany demonstrations rather than be concealed by the successful test counts.

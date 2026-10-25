@@ -1,0 +1,47 @@
+{
+  "pages": 53,
+  "bibliography_entries": 13,
+  "cited_keys": [
+    "chen2021",
+    "corbett1994",
+    "docxdocs",
+    "fastapidocs",
+    "kulik2016",
+    "lewis2020",
+    "madaan2023",
+    "openalexdocs",
+    "piech2015",
+    "pypdfdocs",
+    "reactdocs",
+    "wu2023",
+    "yao2022"
+  ],
+  "unresolved_citations": [],
+  "overfull_boxes": 0,
+  "source_baseline": "40e5a88",
+  "compiler": "Tectonic 0.17.0 (portable; no Python environment changes)",
+  "software_tests_during_thesis_preparation": {
+    "backend_passed": 77,
+    "browser_passed": 9
+  },
+  "similarity_score": "Not measured; no guarantee",
+  "educational_study": "Not conducted",
+  "remaining_metadata": [
+    "Approved final title confirmation",
+    "Thesis advisor",
+    "Authorised countersignatory",
+    "Examination date",
+    "Publication status confirmation"
+  ],
+  "notes": [
+    "Minor underfull typesetting warnings remain.",
+    "Local Fontconfig warning did not prevent the compiled PDF or embedded fonts.",
+    "Institutional logo rendered from the supplied reference for the confirmed same institution.",
+    "No application source code modified by thesis preparation."
+  ],
+  "pdf_sha256": "208a361c3f93cf8aaf374d1b213114f643a01ab6a089f09452076a1bf14458f6",
+  "zip_sha256": "d0b81ccfda8f1dc2744d85cacaf5bca31c2bb6aef08a05313bfb1d1ae87a2597",
+  "zip_entries": 18,
+  "remaining_typesetting_warnings": "Two underfull paragraph warnings; zero overfull boxes and zero unresolved citations.",
+  "extracted_zip_compilation": "Passed independently in a separate temporary directory"
+}

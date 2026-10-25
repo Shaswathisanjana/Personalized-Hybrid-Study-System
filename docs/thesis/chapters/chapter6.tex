@@ -1,0 +1,93 @@
+\section{Introduction}
+The Research Agent supports academic discovery, reading and source-based writing. Its role is to help the student work with papers, not to create the appearance of a completed literature review from titles alone. The current web workflow combines legitimate academic records, uploaded PDF text, persistent collections and coverage-aware exports.
+
+This chapter distinguishes the wider research service architecture from the actions exposed in the student workspace. The project contains planning and bounded search components, but ordinary collection processing remains explicitly initiated in bounded batches. It should not be described as an unrestricted background researcher that downloads and analyses every available paper without supervision.
+
+\section{Academic Topic Search}
+The academic-search abstraction currently uses OpenAlex as its primary working provider. A search request returns real records where available: title, authors, publication year, abstract, DOI and source link. The application does not substitute generated paper identities when a provider returns fewer suitable records or fails.
+
+A search target is a requested count, not a promise. Incremental retrieval can obtain further records within configured bounds, and the interface reports a shortfall when fewer valid papers are available. The previous arbitrary five-paper restriction is not imposed on the current collection interface. Safety limits still exist and are displayed rather than hidden.
+
+Search records are de-duplicated through existing source-identity logic before they are added to a profile-owned collection. A duplicate provider result should not appear as a new independent paper. Provider errors remain visible so that a short result list is not mistaken for a complete survey of the field.
+
+\section{Persistent Mixed-Source Collections}
+The student can select individual search results and retain them alongside uploaded PDFs. These source types carry different evidence coverage. A retrieved abstract may establish the broad purpose of a paper but omit its full method, dataset or limitations. An uploaded PDF can provide much more text, although extraction and selected-chunk processing may still leave gaps.
+
+Table~\ref{tab:source-scopes} makes this distinction explicit. The system preserves the source's identity and coverage instead of promoting an abstract to full-text status because it was added to a collection.
+\begin{table}[htbp]\centering\small
+\caption{Source coverage in the research workflow}\label{tab:source-scopes}
+\begin{tabular}{P{0.23\textwidth}P{0.32\textwidth}P{0.35\textwidth}}\toprule
+Source form & Available evidence & Required qualification\\\midrule
+Academic search record & Provider metadata and available abstract & Abstract-only analysis; unavailable details stay missing.\\
+Extracted uploaded PDF & Text associated with pages and chunks & Full-text excerpts; extraction and processing coverage disclosed.\\
+Scanned or text-poor PDF & Insufficient usable extracted text & OCR is unavailable; do not fabricate an analysis.\\
+Partially processed source & Completed chunks and recoverable errors & Explicit partial coverage, not a complete analysis.\\\bottomrule
+\end{tabular}
+\end{table}
+
+Collections are stored by student profile. Search selections, uploaded documents, extraction records and supported analysis state recover through the database. This persistence supports continuity after refresh or restart. It does not authorise the system to mix one student's uploaded paper with another student's collection.
+
+\section{PDF Extraction and Safety Limits}
+The extractor processes actual PDF bytes and obtains text using the existing PDF extraction path. It does not infer the contents from a filename. Uploaded documents are checked for duplicates, and invalid or corrupted files retain a recoverable error status. Extraction runs through a worker with time and resource bounds rather than allowing an unbounded request to block indefinitely.
+
+The default limits include 20 MiB per PDF, 100 documents per collection, 200 MiB collection storage, 300 pages per document and one million extracted characters. Chunk size defaults to 10,000 characters, extraction processes up to three pending documents in a batch, and analysis processes up to six pending chunks in a batch. These values come from the source defaults and can be overridden through the configured environment fields.
+
+These bounds are operational safeguards, not recommended sample sizes for academic research. A collection with more than five papers is supported, subject to the configured limits. Conversely, a large successful upload does not mean every page has already been analysed. The interface must show the difference between stored, extracted and analysed content.
+
+Image-only papers remain a limitation because OCR is not implemented. Tables, mathematical notation and multi-column layouts can also be extracted imperfectly. Source context must therefore be inspected when a reported finding depends on exact numerical or structural detail.
+
+\section{Chunk Analysis and Provenance}
+The full-text analysis path divides extracted text into attributable chunks and requests structured analysis from the provider. Supported fields include overview, research problem, objectives, methodology, dataset, experimental setup, models or algorithms, evaluation information, findings and limitations. A field can remain unavailable when its supporting content is absent.
+
+Accepted claims retain a quotation and the originating page or chunk identity. The source quote is checked against the available material. This provides an auditable connection between a report statement and the text used to support it. A saved AI interpretation remains distinguishable from the exact quotation.
+
+Quotation matching does not establish every aspect of scientific validity. A sentence may describe related work, a future proposal or an author's own experiment. A correctly copied sentence can still be assigned to the wrong role. The report therefore uses conservative labels and warns that method roles and findings may require checking in context.
+
+\begin{figure}[htbp]\centering
+\begin{tikzpicture}[node distance=0.55cm,box/.style={draw,rounded corners,align=center,font=\small,text width=10.0cm,minimum height=0.7cm},arr/.style={-{Latex},thick}]
+\node[box](source){Profile-owned academic abstract or uploaded PDF};
+\node[box,below=of source](text){Available text with source identity and extraction coverage};
+\node[box,below=of text](chunk){Page-linked or abstract-linked chunks};
+\node[box,below=of chunk](claim){Validated attributed quotations and saved interpretations};
+\node[box,below=of claim](report){Coverage-aware report blocks, comparison tables and references};
+\node[box,below=of report,fill=green!8](export){DOCX or Markdown export with missing-information labels};
+\draw[arr](source)--(text);\draw[arr](text)--(chunk);\draw[arr](chunk)--(claim);\draw[arr](claim)--(report);\draw[arr](report)--(export);
+\end{tikzpicture}
+\caption{Research evidence pipeline. Missing text cannot be replaced by an invented source claim.}\label{fig:research-pipeline}
+\end{figure}
+
+\section{Report Preparation and Readiness}
+The web layer checks whether selected sources have usable completed analysis before enabling an ordinary analysis report. Readiness considers selected sources, available and processed chunks, supported claims, extraction status and failures. A selected collection without accepted analysis is not treated as a completed review.
+
+The student can prepare another bounded batch, retry a failure or exclude an unusable source. A partial report requires an explicit choice and retains its partial-coverage label. A metadata-only bibliography is a separate option and cannot be represented as a methodology or findings report.
+
+This readiness layer was added because a report can be syntactically valid while academically unhelpful. A Word document with headings and repeated ``not available'' messages may open correctly, yet it does not contain completed analysis. The workflow now makes that distinction before export and preserves the reason for incomplete coverage.
+
+\section{Selectable Report Sections}
+The report supports a title and topic, analysed paper details and references, individual overviews, objectives, methodologies, dataset and evaluation information, a methodology comparison table, thematic synthesis, similarities and differences, preliminary gaps, future directions, and limitations with source coverage.
+
+Selecting a section is not permission to invent its content. When the analysed excerpts do not contain a dataset name or evaluation protocol, the document states that the information is unavailable in that coverage. An absent mention is not evidence that the original paper used no dataset or performed no evaluation.
+
+The current web writer builds connected narrative from attributed saved evidence. Conservative lexical checks can reuse a supported span in an appropriate dataset or metric field when its cues are explicit. These checks are report aids, not independent semantic review. The generated report is not presented as a systematic literature review.
+
+\section{Observations, Comparisons and Suggestions}
+A comparison table can place available method excerpts side by side without establishing which method is better. Papers may use different datasets, metrics or experimental conditions. The report should not infer a common benchmark or a meaningful numerical ranking when none has been established.
+
+Source-supported observations are separated from system suggestions. A preliminary gap can suggest that an issue deserves investigation, but the uploaded collection may be too small or incomplete to prove novelty. Future directions are therefore labelled as proposals requiring verification against wider literature and practical feasibility.
+
+This restraint is a deliberate trade-off. It may produce a shorter report than unconstrained generation, but the text remains connected to material the application actually processed. A human researcher can expand the report after checking the sources rather than first having to remove fabricated citations and results.
+
+\section{DOCX and Markdown Export}
+The Word export uses python-docx to produce a real Office Open XML document with headings, paragraphs, tables and references. The Markdown export remains available. In the web application, a shared report-block model helps keep the two formats aligned so that one format does not silently introduce unsupported content missing from the other.
+
+References use available metadata and stable source identity. PDF claims retain page or chunk references, while retrieved abstracts keep their abstract-only labels. Missing authors, years or DOI values remain missing. The report's readability is improved through organisation and attribution, rather than by filling every empty section with generated academic language.
+
+\section{Research Comprehension and CACM}
+Searching, uploading, extraction, analysis and export do not update mastery. They are actions performed by the system. The separate research-comprehension workflow can generate a question from supported analysed material and evaluate the student's actual answer. That accepted assessment can be adapted into CACM evidence.
+
+This is the Research Agent's educational connection to the shared cognitive model. A student who downloads a polished report has not necessarily understood its sources. Requiring an evaluated interpretation keeps the system's analysis capability separate from the student's demonstrated understanding.
+
+\section{Agentic Behaviour in the Research Workflow}
+The agentic contribution is the coordinated choice and execution of relevant research actions, observation of their statuses and recovery when they fail. A query can enter actual academic search or a saved collection. Bounded planning services support focused research goals, while the web workflow preserves explicit source selection and processing controls.
+
+The feedback loop is constrained by evidence availability. A failed extraction changes the next useful action to retrying or replacing the source. An incomplete collection requires more processing or a labelled partial export. A comprehension assessment can change the student's cognitive state. None of these operations justifies claiming that the system independently establishes scientific novelty or guarantees a complete literature review.

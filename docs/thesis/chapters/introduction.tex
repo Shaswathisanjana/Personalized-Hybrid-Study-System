@@ -1,0 +1,49 @@
+\section{Background}
+Personalised learning involves more than changing the wording of an explanation. A useful study system must notice what a student can do, distinguish an untested assumption from assessed understanding, and choose a suitable next activity. This becomes difficult when the student moves between conceptual learning, programming and research reading. Each activity reveals a different aspect of understanding, yet ordinary tools often store these observations independently.
+
+Consider a student studying recursion. The student may explain a base case correctly in a short answer but write a function that never terminates. A lesson-only tool may conclude that the topic is understood, while a programming tool sees only the failed program. Neither observation should be discarded. The disagreement is useful evidence that further checking is needed. PHSS was developed around this practical problem: connecting educational activities without treating every generated response or visited screen as a learning achievement.
+
+Large language models make it possible to interpret natural requests and prepare varied explanations. However, a language model response alone does not provide a reliable learning record. The surrounding application must decide which services may act, validate their outputs, retain evidence and recover when an external service fails. The design therefore combines language-model capabilities with explicit software policies and persistent state.
+
+\section{Motivation}
+The immediate motivation was to create a single study environment in which a student can ask for help naturally and continue into the appropriate activity. The student should be able to request a lesson, a programming exercise or academic papers without first understanding the internal organisation of the software. The same environment should retain a student's previous assessed work and use it when deciding what to offer next.
+
+A second motivation concerns trust. An attractive dashboard can be misleading if it treats activity counts as mastery. A research report can appear complete while containing details that were never present in its sources. A code correction can look convincing without having been executed. These risks shaped the project requirements. The implementation separates assessed student responses from system-generated material and displays the coverage of its evidence.
+
+The application was initially exercised through a Streamlit prototype. The current work presents the subsequent web application, which reuses the Python service architecture through a React interface and FastAPI endpoints. Streamlit is relevant to the development history, but it is not the primary application evaluated or described in this thesis.
+
+\section{Problem Statement}
+The project addresses the following engineering problem: how can one web application coordinate learning, coding and research activities using a shared student model, while preserving the identity, provenance and limitations of the evidence produced by each workflow?
+
+This problem has several connected parts. Natural-language requests must enter actual workflows rather than produce generic conversational answers. Cognitive state must be updated only after a supported assessment. Unfinished work must survive browser refresh and application restart. Research material must retain its source coverage. Failures must leave a recoverable state rather than a misleading success screen. The implementation must also remain understandable enough to demonstrate to students and faculty.
+
+\section{Objectives}
+The first objective is to provide a common entry point that interprets a student's request and selects one or more appropriate specialist activities. The second is to maintain a shared, profile-specific cognitive record that can be read by all three agents. The third is to make adaptation visible through practice difficulty, focused feedback, diagnostics and follow-up recommendations.
+
+A further objective is to integrate real tools: question generation and assessment, controlled Python execution, academic retrieval, PDF extraction and document export. These actions must have explicit limits and observable outcomes. Finally, the system must preserve work through persistence and provide deterministic tests for important workflows and failure cases.
+
+\section{Contributions}
+The project contribution is an integrated application and its supporting control mechanisms. It does not introduce a newly trained foundation model or claim a new statistical estimator of human knowledge. Its main contributions are summarised in Table~\ref{tab:contributions}.
+
+\begin{table}[htbp]\centering\small
+\caption{Implemented project contributions}\label{tab:contributions}
+\begin{tabular}{P{0.26\textwidth}P{0.66\textwidth}}\toprule
+Contribution & Implemented meaning\\\midrule
+Unified orchestration & Natural-language routing into real Learning, Coding and Research workflows with bounded plans.\\
+Shared cognitive evidence & Common concept identities, mastery estimates, misconception records and cross-agent conflict handling.\\
+Assessment boundaries & Lessons, searches, uploads, report generation and AI corrections do not count as student mastery.\\
+Adaptive practice & State-aware questions and coding recommendations using existing inspectable policies.\\
+Grounded research support & Persistent collections, extracted PDF content, source-linked claims and coverage-aware report export.\\
+Recoverable operation & Profile-owned state, duplicate assessment protection, checkpoints and explicit retry paths.\\\bottomrule
+\end{tabular}
+\end{table}
+
+These contributions are strongest when considered together. For example, saving a code draft is useful on its own, but saving the draft, its assessment receipt, the active activity and the recommendation context makes the next interaction coherent. The project focuses on this continuity between actions.
+
+\section{Scope}
+The implemented application is intended for local educational use and demonstrations. The student interface supports lessons and adaptive quizzes, Python coding practice, standalone code review, academic search, uploaded PDF analysis and research-report export. Direct agent buttons provide an alternative entry to the same underlying services. They do not form separate implementations of the agents.
+
+The current system uses local profiles rather than production user authentication. Its controlled code runner is not a hardened security sandbox. It processes machine-readable PDF text and does not implement OCR. The cognitive policies are rule-based, and their thresholds have not been calibrated through a real-student study. These limits define the scope of the contribution rather than invalidate the implemented workflows.
+
+\section{Organisation of the Thesis}
+Chapter~2 reviews relevant work in student modelling, agentic interaction, program evaluation and source-grounded generation. Chapter~3 introduces the application architecture and formalises its state and evidence model. Chapter~4 explains the agentic control loop and recovery strategy. Chapter~5 describes the Learning and Coding agents. Chapter~6 describes research retrieval, PDF analysis and grounded reporting. Chapter~7 presents recorded software verification and its limits. Chapter~8 concludes the work and separates completed features from future research. The appendix records implementation parameters and reproduction guidance.

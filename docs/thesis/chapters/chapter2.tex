@@ -1,0 +1,58 @@
+\section{Introduction}
+The project draws on several areas that are often studied separately: intelligent tutoring, student modelling, language-model agents, automated programming support and retrieval-based writing. The purpose of this review is to explain the design choices that these areas motivate. It is not a claim that PHSS reproduces every reviewed algorithm or outperforms the systems in the literature.
+
+The review uses identifiable primary papers and distinguishes their published contributions from the application's own implementation. No performance number from another paper is reused as a PHSS result. This distinction is especially important because the present evaluation concerns software behaviour, whereas educational studies may measure learning outcomes over extended periods.
+
+\section{Student Modelling and Knowledge Tracing}
+Corbett and Anderson describe knowledge tracing as maintaining estimates of procedural knowledge while a student works through programming tasks~\cite{corbett1994}. Their work establishes a useful principle for this project: the next learning action can depend on an evolving student model rather than a fixed sequence alone. PHSS applies this principle through concept-level assessment records. Its weighted update is not the Bayesian Knowledge Tracing model described in that paper.
+
+Piech and colleagues investigate recurrent neural networks for modelling sequences of student interactions~\cite{piech2015}. Their work represents a data-driven direction in knowledge tracing. In contrast, PHSS uses explicit rules and does not train a recurrent knowledge-tracing model. This choice keeps decisions inspectable in a project with no collected student-training dataset, while limiting claims about predictive accuracy.
+
+The practical lesson from these works is that a student model should have a defined connection to observed performance. PHSS therefore separates an initial neutral estimate from demonstrated competence. An initial mastery value of 0.5 is a software prior, not a statement that a new student already knows half of a topic.
+
+\section{Intelligent Tutoring and Educational Validation}
+Kulik and Fletcher review controlled evaluations of intelligent tutoring systems~\cite{kulik2016}. Such work matters because a technically functioning tutor and an educationally effective tutor are different claims. A system may save state correctly and still provide explanations that students find difficult to use. Conversely, a promising lesson design may fail operationally if student work is lost.
+
+For PHSS, this distinction leads to a restrained evaluation strategy. Deterministic tests check routing, persistence, assessment boundaries and recovery. They cannot establish learning gains, long-term retention, engagement or the calibration of mastery estimates. Those outcomes require an appropriately designed student study. The thesis therefore reports engineering validation and leaves educational validation as future work.
+
+\section{Reasoning and Acting in Language-Model Systems}
+ReAct studies the interleaving of reasoning-related steps and actions that obtain information from an external environment~\cite{yao2022}. Its relevance to PHSS is the separation between producing text and taking an action whose result can influence subsequent behaviour. In the application, examples of observable actions include loading an exercise, running supplied tests and extracting a PDF chunk. PHSS does not claim to reproduce ReAct's benchmark protocol or expose an unrestricted language-model reasoning trace.
+
+AutoGen presents an infrastructure for applications in which configurable agents interact through conversation and tools~\cite{wu2023}. It illustrates a general approach to assigning specialised roles. PHSS implements its own Python coordination and state-sharing services; it does not depend on AutoGen as its runtime. The comparison is architectural: specialist responsibilities and explicit interaction rules help prevent a multi-agent label from becoming merely a collection of differently named chat prompts.
+
+\section{Feedback and Iterative Refinement}
+Self-Refine explores improving generated outputs through repeated feedback and revision without additional model training~\cite{madaan2023}. The relevant design idea is that an initial output need not be accepted without checking. PHSS applies bounded generate-and-check behaviour to coding packages and separates original student code from an AI-proposed correction. It does not assume that self-feedback alone proves correctness.
+
+This distinction is visible in the coding workflow. A revised solution may pass the supplied tests while still failing an untested input. A generated task and its generated reference solution may also share an error. Accordingly, the system labels the scope of verification and avoids treating an AI-written correction as student achievement.
+
+\section{Functional Evaluation of Generated Programs}
+Chen and colleagues use executable tasks to investigate functional correctness in code generation~\cite{chen2021}. For PHSS, the useful connection is the role of behaviour-based checking alongside language-model feedback. The application executes supplied function tests for assessed practice and records their individual outcomes. It does not evaluate its model on HumanEval or claim the paper's benchmark results.
+
+The project also supports a separate standalone review mode. In that mode, there may be no trusted behavioural specification or tests. Syntax inspection and AI suggestions can be helpful, but they cannot support the same correctness claim as an executed exercise contract. Keeping these workflows separate avoids an important source of overstatement.
+
+\section{Retrieval and Source-Grounded Generation}
+Lewis and colleagues introduce retrieval-augmented generation by combining retrieved information with a generative model for knowledge-intensive tasks~\cite{lewis2020}. The broader motivation is relevant to the Research Agent: a report should be connected to source material rather than rely entirely on model memory. PHSS uses retrieved abstracts and uploaded PDF excerpts, with preserved source identity and page or chunk references. It is not a trained implementation of the original RAG architecture.
+
+Source access is only one part of grounded reporting. The application must also distinguish an author's reported finding, a saved AI interpretation and a proposed research direction. An absent dataset name must remain absent. A complete-looking section should not be created by guessing from a paper title. These requirements shaped the conservative report writer described in Chapter~6.
+
+\section{Summary of Reviewed Work}
+Table~\ref{tab:literature} summarises the specific design relevance of the reviewed publications. The comparison describes conceptual relationships, not a common benchmark or a ranking of systems.
+\begin{table}[htbp]\centering\small
+\caption{Literature relationships and project boundaries}\label{tab:literature}
+\begin{tabular}{P{0.25\textwidth}P{0.31\textwidth}P{0.35\textwidth}}\toprule
+Work & Relevant idea & PHSS boundary\\\midrule
+Knowledge tracing~\cite{corbett1994} & Evolving student estimates & Uses a different explicit update rule.\\
+Deep Knowledge Tracing~\cite{piech2015} & Interaction-sequence modelling & No trained recurrent student model.\\
+ITS review~\cite{kulik2016} & Controlled educational evaluation & Current results are software tests.\\
+ReAct~\cite{yao2022} & Action results inform later steps & Bounded application control, not benchmark replication.\\
+AutoGen~\cite{wu2023} & Specialised agents and tools & Own coordinator; no AutoGen runtime.\\
+Self-Refine~\cite{madaan2023} & Feedback and revision & Validation remains limited and explicit.\\
+Code evaluation~\cite{chen2021} & Executable functional tests & Supplied task tests, not HumanEval evaluation.\\
+RAG~\cite{lewis2020} & Retrieved source grounding & Excerpt-based provenance, not RAG training.\\\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Research Gap and Project Position}
+The engineering gap addressed here is the continuity between learning activities. A student needs more than three isolated interfaces: evidence from a lesson assessment should remain available when coding begins, and research understanding should be assessed separately from the system's ability to summarise a paper. Operational details such as duplicate protection and refresh recovery are necessary for that continuity.
+
+PHSS offers an implementation of this integrated approach. The gap statement is limited to the application's design problem; it does not assert that no prior educational system has combined multiple activities. The defensible contribution is the implemented coordination, evidence boundaries, source-aware reporting and testable recovery behaviour in this particular project.

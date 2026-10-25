@@ -1,0 +1,28 @@
+\section{Summary of the Work}
+CACM-PHSS was developed as a web-based study environment in which conceptual learning, coding practice and research reading share a student evidence model. The React interface provides a common natural-language entry point, while FastAPI connects it to the existing Python orchestration and specialist services. SQLite persistence retains supported activity state and research collections across refresh and restart.
+
+The project moved from an initial Streamlit testing interface to the present web application. The thesis concentrates on the web system and its real workflows rather than treating the prototype and web frontend as separate educational methods.
+
+\section{Principal Findings}
+The implementation demonstrates that the three specialist activities can be entered from one interface without requiring a manual agent choice. The same services remain accessible through direct buttons. Shared evidence allows a later activity to read the student's existing concept state, and disagreement can trigger a focused diagnostic rather than being hidden.
+
+The coding next-practice feature provides a concrete example of bounded replanning. It observes an original assessment, selects revision or further practice and preserves the reason across navigation and refresh. Research processing provides another example: export eligibility depends on actual source analysis and failures, not merely on a request to generate a report.
+
+Recorded backend, selected existing-suite and browser checks support these operational findings under deterministic offline fixtures. They do not establish educational superiority or live-provider performance for arbitrary topics.
+
+\section{Contributions}
+The main contribution is the integration of specialist workflows with explicit evidence boundaries. Content generation, code correction, paper analysis and report export are useful system actions, but they are not treated as student mastery. Assessment receipts, profile ownership and durable snapshots preserve this distinction over repeated and interrupted operations.
+
+A second contribution is honest source coverage in research support. Retrieved abstracts, extracted full-text excerpts and incomplete processing remain distinguishable. The report writer can organise available evidence without claiming that missing methodological detail has been found.
+
+\section{Scope and Limitations}
+The present application is a local prototype with practical engineering safeguards. Its cognitive policy is rule-based. Its confidence value is not a calibrated probability, and its correctness judgements remain limited by supplied tests and provider feedback. It has not been evaluated through a real-student study.
+
+These boundaries mean that the application is best presented as an implemented multi-agent personalised study platform with reproducible software verification. It should not be described as a fully autonomous teacher, a secure public code-execution service or a validated replacement for academic supervision.
+
+\section{Scope for Further Research}
+A future educational study could compare appropriately matched study conditions using pre-tests, post-tests and delayed retention measures. Such a study would require consent, an ethical data-handling plan and clearly defined outcomes. Calibration work could compare the current estimates with subsequent independently scored responses before changing the mastery policy.
+
+Further engineering work could add authenticated accounts, stronger execution isolation, accessibility testing and measured concurrency limits. OCR and richer document-layout handling could improve source coverage. Research suggestions could be strengthened by broader verified retrieval, while preserving the separation between source observations and proposed directions.
+
+Cross-topic coding recommendations are another possible extension. They would require a defensible relationship between concepts and additional checks that prerequisite suggestions are appropriate. None of these future directions is counted as a completed feature in this thesis.
