@@ -16,7 +16,10 @@ from pdf_collection_test_fixtures import ExtractiveAnalyzer
 class FixtureRuntime(RoutedOfflineOrchestrator):
     @staticmethod
     def route(query):
-        if query.startswith('Please check this code'):
+        raw=query
+        if query.startswith('Interpret this student request using the saved activity context'):
+            raw=json.loads(query.split('\n',1)[1])['student_request']
+        if raw.startswith('Please check this code'):
             from backend.tests.test_code_review_flow import semantic_route
             return semantic_route(query)
         return real_router(query)

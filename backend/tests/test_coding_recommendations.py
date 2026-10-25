@@ -1,4 +1,4 @@
-﻿"""Offline integration of evidence-driven coding recommendations and recovery."""
+"""Offline integration of evidence-driven coding recommendations and recovery."""
 from copy import deepcopy
 from unittest.mock import patch
 import pytest
@@ -152,3 +152,119 @@ def test_pending_assessment_hides_recommendation(client):
     save_state(state)
     s=c.get(c.base).json()
     assert s['coding_recommendation'] is None and s['pending']
+
+
+def test_reopening_solved_topic_does_not_reload_completed_catalogue_task(client):
+    c=client;s=assessed(c);s=start(c,s)
+    s=post(c,'/code',{'code':SOLUTIONS[('Arrays',s['exercise']['task']['difficulty'])]})
+    title=s['exercise']['task']['title']
+    # The default offline provider cannot supply an Arrays variant. This must
+    # fail honestly, preserving the completed task, rather than return it as new.
+    response=c.post(c.base+'/query',json={'text':'Give me a coding problem on Arrays'})
+    assert response.status_code!=200, 'Solved catalogue exercise was silently reloaded as new'
+    restored=c.get(c.base).json()
+    assert restored['exercise']['task']['title']==title
+    assert restored['coding_result']==s['coding_result']
+
+
+def sum_package(difficulty):
+    package=linked_list_package()
+    package.update(title='Sum of Array Values',difficulty=difficulty,function_name='total_values',
+        description='Return the sum of all integer array values.',input_output='Integer list in, integer sum out.',
+        expected_behavior='Return zero for an empty list, otherwise the sum including negative values.',
+        starter_code='def total_values(nums):\n    pass\n',
+        reference_code='def total_values(nums):\n    total = 0\n    for value in nums:\n        total += value\n    return total\n',
+        tests=[dict(name='empty',args=[[]],expected_output=0),dict(name='positive',args=[[1,2]],expected_output=3),
+               dict(name='negative',args=[[-2,1]],expected_output=-1)])
+    return package
+
+
+def test_completed_catalogue_is_not_suggested_again_after_variant_and_restart(client):
+    c=client;s=start(c,assessed(c));s=post(c,'/code',{'code':SOLUTIONS[('Arrays',s['exercise']['task']['difficulty'])]})
+    package=sum_package(s['coding_recommendation']['difficulty'])
+    with patch('app.coding_agent.open_topic.OpenTopicGenerator',lambda **kw:OpenTopicGenerator(provider=lambda **_:package,**kw)):
+        s=start(c,s)
+    s=post(c,'/code',{'code':package['reference_code']})
+    assert s['coding_recommendation']['mode']=='variant', 'Must not cycle back to the solved catalogue task'
+    fresh=Application(c.service.store.path,factory=Runtime);state=fresh.load(c.student)
+    assert len(state['advanced_coding_completed_tasks'])==3
+    assert fresh.view(state)['coding_recommendation']['mode']=='variant'
+    with patch('app.coding_agent.open_topic.OpenTopicGenerator',lambda **kw:OpenTopicGenerator(provider=lambda **_:package,**kw)):
+        response=c.post(c.base+'/coding/recommended-practice',json={'recommendation_id':s['coding_recommendation']['id']})
+    assert response.status_code==400
+    assert c.get(c.base).json()['exercise']==s['exercise']
+
+
+def test_typed_next_uses_saved_recommendation_and_preserves_plan_and_draft(client):
+    c=client;s=assessed(c);draft=s['code']+'# my saved notes\n'
+    result=post(c,'/query',{'text':'Give me the next problem','coding_draft':draft})
+    assert result['exercise']['task']['title']!=s['exercise']['task']['title']
+    assert result['plan']['request_id']==s['plan']['request_id']
+    assert result['plan']['index']==s['plan']['index']
+    assert result['coding_saved_drafts']['arrays']['code']==draft
+    assert result['student']==s['student'] and result['evidence']==s['evidence']
+    assert result['coding_practice_focus']['source_submission_id']==s['coding_result']['submission_id']
+
+
+def test_typed_next_requires_assessment_and_leaves_original_activity(client):
+    c=client;s=post(c,'/query',{'text':'Give me a coding problem on Arrays'})
+    response=c.post(c.base+'/query',json={'text':'Give me the next problem'})
+    assert response.status_code==400 and 'Submit and evaluate' in response.json()['detail']
+    restored=c.get(c.base).json()
+    assert restored['exercise']==s['exercise'] and not restored['evidence']
+
+
+def test_completed_history_does_not_affect_another_student(client):
+    c=client;assessed(c)
+    s=c.post('/api/students/'+c.other+'/query',json={'text':'Give me a coding problem on Arrays'}).json()
+    assert s['exercise']['task']['difficulty']=='easy'
+    assert not c.service.load(c.other).get('advanced_coding_completed_tasks')
+
+
+def test_duplicate_contract_ignores_function_rename_and_test_order():
+    package=linked_list_package();first=OpenTopicGenerator(provider=lambda **_:package).generate('linked lists','easy')
+    renamed=deepcopy(package);renamed['title']='Traverse differently';renamed['function_name']='walk_nodes'
+    renamed['starter_code']=renamed['starter_code'].replace('node_values','walk_nodes')
+    renamed['reference_code']=renamed['reference_code'].replace('node_values','walk_nodes')
+    renamed['tests'].reverse()
+    with pytest.raises(PackageGenerationError):
+        OpenTopicGenerator(provider=lambda **_:renamed,max_attempts=1).generate('linked lists','easy',avoid_signatures=[exercise_signature(first)])
+
+
+def test_explicit_followup_fallback_uses_saved_context_without_changing_topic(client):
+    from backend.coding_history import routing_request
+    from app.orchestrator.query_router import QueryRouter
+    c=client;assessed(c)
+    query=routing_request(c.service.load(c.student),'Give me the next problem')
+    route=QueryRouter.__new__(QueryRouter)._fallback_route(query)
+    assert route.concept=='Arrays' and route.coding_mode=='next_practice'
+
+
+def test_successful_reopening_uses_a_new_validated_package(client):
+    c=client;s=start(c,assessed(c));s=post(c,'/code',{'code':SOLUTIONS[('Arrays',s['exercise']['task']['difficulty'])]})
+    package=sum_package(s['coding_recommendation']['difficulty'])
+    with patch('app.coding_agent.open_topic.OpenTopicGenerator',lambda **kw:OpenTopicGenerator(provider=lambda **_:package,**kw)):
+        result=post(c,'/query',{'text':'Give me a coding problem on Arrays'})
+    assert result['exercise']['task']['title']==package['title']
+    assert result['student']==s['student'] and result['evidence']==s['evidence']
+
+
+def test_old_profile_completed_tasks_recover_from_committed_receipts(client):
+    from app.persistence.streamlit_state import save_state
+    from backend.coding_history import completed_tasks
+    c=client;s=start(c,assessed(c));s=post(c,'/code',{'code':SOLUTIONS[('Arrays',s['exercise']['task']['difficulty'])]})
+    state=c.service.load(c.student);state.pop('advanced_coding_completed_tasks',None);save_state(state)
+    fresh=Application(c.service.store.path,factory=Runtime);restored=fresh.load(c.student)
+    history=completed_tasks(restored,'Arrays')
+    assert len(history)==2
+    assert {item['difficulty'] for item in history}=={'easy','hard'}
+    assert fresh.view(restored)['student']==s['student']
+    assert fresh.view(restored)['evidence']==s['evidence']
+
+
+def test_completed_history_rejects_foreign_profile_receipts(client):
+    from app.persistence.session_recovery import capture
+    c=client;assessed(c);state=c.service.load(c.student)
+    state['advanced_coding_completed_tasks'][0]['user_id']=c.other
+    with pytest.raises(ValueError,match='completed coding history'):
+        capture(state)

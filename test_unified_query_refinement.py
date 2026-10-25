@@ -16,6 +16,12 @@ from app.coding_agent.open_topic import OpenTopicGenerator
 
 
 def route_payload(query):
+    if query.startswith("Interpret this student request using the saved activity context"):
+        context=json.loads(query.split("\n",1)[1])
+        query=context['student_request']
+        if query in ('Give me the next problem','Give me another coding exercise'):
+            return dict(concept=context['current_activity']['topic'],intents=['code'],selected_agents=['coding'],
+                needs_cognitive_tracking=True,coding_mode='next_practice',reason='Continue saved coding practice')
     if query.startswith("Resolve this student request"):
         context = json.loads(query.split("\n", 1)[1])
         query = context["student_clarification"]

@@ -18,8 +18,10 @@ from app.coding_agent.task_generator import CodingTaskGenerator
 
 def exercise_signature(exercise):
     # Ignore cosmetic titles/test names: renaming an identical contract is not a new exercise.
-    data=[(t.function_name,t.args,t.expected_output,t.output_mode) for t in exercise.test_cases]
-    return hashlib.sha256(json.dumps(data,sort_keys=True,allow_nan=False).encode()).hexdigest()
+    # Function renames, test ordering and repeated test rows are cosmetic too.
+    data=sorted({json.dumps((t.args,t.expected_output,t.output_mode),sort_keys=True,allow_nan=False)
+                 for t in exercise.test_cases})
+    return hashlib.sha256(json.dumps(data).encode()).hexdigest()
 
 
 
@@ -188,11 +190,15 @@ class OpenTopicGenerator:
         )
         return response.text
 
-    def generate(self, topic, difficulty, language="Python", *, context="", avoid_signature=None, avoid_title=None):
+    def generate(self, topic, difficulty, language="Python", *, context="", avoid_signature=None, avoid_title=None, avoid_signatures=(), avoid_titles=()):
         topic = normalize_topic(topic)
         require_python(language)
         if difficulty not in {"easy", "medium", "hard"}:
             raise ValueError("Invalid difficulty.")
+        excluded_signatures = set(avoid_signatures)
+        excluded_titles = {title.casefold().strip() for title in avoid_titles}
+        if avoid_signature: excluded_signatures.add(avoid_signature)
+        if avoid_title: excluded_titles.add(avoid_title.casefold().strip())
         feedback = str(context)[:4000]
         for attempt in range(self.max_attempts):
             try:
@@ -202,9 +208,8 @@ class OpenTopicGenerator:
                         raise ValueError("Provider response exceeds 60,000 characters.")
                     raw = json.loads(raw)
                 exercise=validate_package(raw, topic, difficulty, self.runner)
-                if avoid_signature:
-                    if exercise_signature(exercise)==avoid_signature or (avoid_title and exercise.task.title.casefold()==avoid_title.casefold()):
-                        raise ValueError('The candidate repeats the previous task.')
+                if exercise_signature(exercise) in excluded_signatures or exercise.task.title.casefold().strip() in excluded_titles:
+                    raise ValueError('The candidate repeats a completed or current task.')
                 return exercise
             except Exception:
                 # Never expose provider exceptions: they can contain credentials/URLs.

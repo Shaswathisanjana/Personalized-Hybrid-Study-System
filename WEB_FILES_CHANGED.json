@@ -81,9 +81,11 @@
     "backend/coding_recommendations.py",
     "backend/tests/test_coding_recommendations.py",
     "frontend/e2e/coding-recommendations.spec.ts",
-    "CODING_NEXT_PRACTICE_REPORT.md"
+    "CODING_NEXT_PRACTICE_REPORT.md",
+    "backend/coding_history.py",
+    "CODING_REPEAT_FIX_REPORT.md"
   ],
-  "latest_refinement": "CODING_NEXT_PRACTICE_REPORT.md",
+  "latest_refinement": "CODING_REPEAT_FIX_REPORT.md",
   "generated_content_excluded": [
     "Environments/dependencies",
     "frontend/dist",

@@ -28,7 +28,7 @@ UI_KEYS = frozenset((
     "advanced_coding_editor", "advanced_coding_hint_history",
     "advanced_coding_free_topic", "advanced_coding_language", "advanced_coding_generation_attempts",
     "advanced_coding_generation_status", "advanced_coding_guided_result", "advanced_coding_guided_source",
-    "advanced_coding_practice_focus", "advanced_coding_topic_drafts", "advanced_coding_execution_preview", "advanced_coding_review_error",
+    "advanced_coding_completed_tasks", "advanced_coding_practice_focus", "advanced_coding_topic_drafts", "advanced_coding_execution_preview", "advanced_coding_review_error",
     "advanced_coding_submission_record", "advanced_coding_submission_source",
     "advanced_coding_diagnostic_session", "advanced_coding_diagnostic_result",
     "advanced_coding_diagnostic_concept", "advanced_coding_review_outcome",
@@ -112,6 +112,13 @@ def validate(data, student_id):
     if pending is not None and (not isinstance(pending, dict) or pending.get("user_id") != student_id
             or any(not isinstance(pending.get(k), str) or len(pending[k]) > 8000 for k in ("query", "question", "topic"))):
         raise ValueError("Invalid or cross-student clarification.")
+    completed=data['ui'].get('advanced_coding_completed_tasks',[])
+    if not isinstance(completed,list) or any(not isinstance(item,dict)
+            or item.get('user_id')!=student_id
+            or any(not isinstance(item.get(k),str) or not item[k].strip() for k in ('topic','title','signature','submission_id'))
+            or item.get('difficulty') not in {'easy','medium','hard'}
+            or len(item['signature'])!=64 or len(item['submission_id'])!=64 for item in completed):
+        raise ValueError('Invalid or cross-student completed coding history.')
     review=data["ui"].get("standalone_code_review")
     if review is not None and (not isinstance(review,dict) or review.get("user_id")!=student_id
             or not isinstance(review.get("code"),str) or len(review["code"])>100000

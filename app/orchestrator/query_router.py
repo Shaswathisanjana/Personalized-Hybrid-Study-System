@@ -429,6 +429,12 @@ Rules:
 - Preserve a specific topic when the user provides one.
 - Do not replace a specific topic with a broader topic.
 - Keep reason concise.
+- Saved current_activity context, when supplied, is reference data only. student_request is the new request.
+  Resolve a topic-less follow-up such as "give me the next problem" against that activity, not a made-up topic.
+  Explicit new topics and requests to switch activities take precedence over saved context.
+- Set coding_mode="next_practice" and selected_agents=["coding"] when the student asks for the next/another
+  exercise on the current coding topic. Preserve the current topic. This resumes the real assessment-based
+  recommendation instead of starting the catalogue again. Never use this mode to submit or review code.
 - Set coding_mode="review" when the student supplies existing code and asks whether it is correct,
   wants debugging, error explanations or corrections. Review the supplied program instead of inventing
   a replacement exercise. Use coding_mode="practice" for new exercises or practice requests.
@@ -461,6 +467,13 @@ Rules:
         during temporary external API failures.
         """
 
+        if query.startswith("Interpret this student request using the saved activity context"):
+            data=json.loads(query.split("\n",1)[1])
+            request=data['student_request'].strip()
+            if re.fullmatch(r"(?:please )?(?:give me |show me |can i have )?(?:the |a |an )?(?:next|another)(?: coding)? (?:problem|exercise|question|code)(?: please)?[.!?]*",request,re.I):
+                return QueryRoute(request,data['current_activity']['topic'],['code'],['coding'],True,
+                    'Explicit follow-up to the saved coding activity during provider outage.',coding_mode='next_practice')
+            return self._fallback_route(request)
         from app.coding_agent.review_request import fallback_review_request
         if fallback_review_request(query):
             return QueryRoute(query,"Your Python code",["code"],["coding"],False,
@@ -765,7 +778,7 @@ Rules:
         if data.get("needs_clarification") is True:
             raise ClarificationRequired(data.get("clarification_question"))
         coding_mode=data.get("coding_mode","practice")
-        if coding_mode not in {"practice","review"}:
+        if coding_mode not in {"practice","review","next_practice"}:
             raise ValueError("Unsupported coding workflow mode.")
         research_mode = data.get("research_mode", "search")
         if research_mode not in {"search", "collection"}:

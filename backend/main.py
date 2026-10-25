@@ -21,7 +21,9 @@ from app.persistence.sqlite_store import StaleSnapshotError
 from app.persistence.research_document_store import StaleDocumentError
 
 class Profile(BaseModel): name:str=Field(min_length=1,max_length=100)
-class Query(BaseModel): text:str=Field(min_length=1,max_length=8000)
+class Query(BaseModel):
+    text:str=Field(min_length=1,max_length=8000)
+    coding_draft:str|None=Field(default=None,max_length=100000)
 class Code(BaseModel): code:str=Field(max_length=100000)
 class ReviewDraft(Code): context:str=Field(default='',max_length=8000)
 class Answer(BaseModel): answer:str=Field(min_length=1,max_length=20000); question_id:str|None=None
@@ -115,7 +117,7 @@ def create_app(application=None):
                 raise HTTPException(409,'Resume the interrupted assessment before another action.')
             action(s);save_state(s);return service.view(s)
     @api.post('/api/students/{identity}/query')
-    def query(identity:str,body:Query,x_revision:int|None=Header(default=None)):return mutate(identity,x_revision,lambda s:service.query(s,body.text))
+    def query(identity:str,body:Query,x_revision:int|None=Header(default=None)):return mutate(identity,x_revision,lambda s:service.query(s,body.text,body.coding_draft))
     @api.post('/api/students/{identity}/prepare')
     def prepare(identity:str,x_revision:int|None=Header(default=None)):return mutate(identity,x_revision,lambda s:service.prepare(s,retry=True))
     @api.post('/api/students/{identity}/continue')

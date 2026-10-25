@@ -75,14 +75,37 @@ class Application:
             if isinstance(question,dict):
                 question.pop('correct_answer',None);question.pop('expected_answer',None);question.pop('explanation',None)
         return output
-    def query(self,s,text):
+    def query(self,s,text,coding_draft=None):
+        plan=s.get('journey_workspace')
+        if (coding_draft is not None and plan and plan['index']<len(plan['steps'])
+                and plan['steps'][plan['index']]['agent']=='coding' and plan.get('coding_mode','practice')=='practice'):
+            s['advanced_coding_editor']=coding_draft;save_state(s)
         from app.orchestrator.query_router import ClarificationRequired, clarified_request
         pending=s.get('journey_clarification')
         query=clarified_request(text,pending,s['student'].user_id)
+        if not pending:
+            from backend.coding_history import routing_request
+            query=routing_request(s,query)
         try: result=StudentJourneyService(s['student'],s['orchestrator']).handle_request(query,defer_workflows=True)
         except ClarificationRequired as exc:
             s['journey_clarification']=dict(user_id=s['student'].user_id,query=text,question=exc.question,topic='')
             save_state(s); return
+        if getattr(result.route,'coding_mode','practice')=='next_practice':
+            from backend.coding_recommendations import recommend
+            from app.cognitive.concept_identity import concept_id
+            plan=s.get('journey_workspace')
+            if (not plan or plan['index']>=len(plan['steps']) or result.route.selected_agents!=['coding']
+                    or plan['steps'][plan['index']]['agent']!='coding'
+                    or concept_id(result.route.concept)!=concept_id(plan['concept'])):
+                s['journey_clarification']=dict(user_id=s['student'].user_id,query=text,
+                    question='Which coding topic would you like to practise next?',topic='')
+                save_state(s);return
+            recommendation=recommend(s)
+            if not recommendation:raise ValueError('Submit and evaluate the current exercise before requesting recommended practice.')
+            self.start_recommended_coding(s,recommendation['id'])
+            s.pop('journey_clarification',None);s['last_query']=text;save_state(s);return
+        # Keep the original student text for saved plans and supplied-code review.
+        result.query=text;result.route.original_query=text
         s.pop('journey_clarification',None)
         s['last_result']=result; s['last_query']=text
         plan=start_workspace(s,result)
@@ -121,14 +144,21 @@ class Application:
         advance_workspace(s);save_state(s);self.prepare(s)
     def coding_load(self,s,topic):
         from app.coding_agent.verified_exercises import get_verified_exercise
-        from app.coding_agent.open_topic import OpenTopicGenerator, observe_action, normalize_topic
+        from app.coding_agent.open_topic import OpenTopicGenerator, observe_action, normalize_topic, exercise_signature
         from app.coding_agent.submission_controller import CodingSubmissionController
         from app.coding_agent.adaptive_hint_coordinator import MisconceptionAwareHintCoordinator
         workflow=StudentJourneyService(s['student'],s['orchestrator']).coding_workflow()
         topic=normalize_topic(topic)
         action=observe_action(workflow,topic)
         curated=StudentJourneyService.coding_concept(topic)
-        exercise=(get_verified_exercise(curated,action.difficulty) if curated else OpenTopicGenerator(max_attempts=2).generate(topic,action.difficulty,'Python'))
+        from backend.coding_history import remember_completion, completed_tasks
+        remember_completion(s)
+        history=completed_tasks(s,topic)
+        exercise=get_verified_exercise(curated,action.difficulty) if curated else None
+        if exercise is None or any(item['signature']==exercise_signature(exercise) for item in history):
+            exercise=OpenTopicGenerator(max_attempts=2).generate(topic,action.difficulty,'Python',
+                context='Create a different task. Previously completed titles: '+', '.join(item['title'] for item in history[-20:]),
+                avoid_signatures=[item['signature'] for item in history],avoid_titles=[item['title'] for item in history])
         self.install_coding(s,exercise,workflow,topic)
     def install_coding(self,s,exercise,workflow,topic):
         from app.coding_agent.submission_controller import CodingSubmissionController
@@ -153,6 +183,8 @@ class Application:
             raise ValueError('This recommendation is no longer current. Refresh the evaluated activity.')
         if not recommendation['can_start']:raise ValueError('Resolve the cognitive conflict with the diagnostic first.')
         if code is not None:s['advanced_coding_editor']=code;save_state(s)
+        from backend.coding_history import remember_completion, exclusions
+        remember_completion(s)
         exercise=s['advanced_coding_exercise'];workflow=s['advanced_coding_controller'].workflow
         if recommendation['mode']=='retry':
             for key in ('advanced_coding_submission_record','advanced_coding_guided_result','advanced_coding_review_error','advanced_coding_execution_preview'):s.pop(key,None)
@@ -161,7 +193,9 @@ class Application:
                 exercise=get_verified_exercise(recommendation['topic'],recommendation['difficulty'])
             else:
                 context='Choose a different problem on the SAME topic, not a renamed copy. Previous title: '+exercise.task.title+'. Previous specification: '+exercise.task.description[:1400]+'. Practice focus: '+' '.join(recommendation['focus'])
-                exercise=OpenTopicGenerator(max_attempts=2).generate(recommendation['topic'],recommendation['difficulty'],'Python',context=context,avoid_signature=exercise_signature(exercise),avoid_title=exercise.task.title)
+                avoid_signatures,avoid_titles=exclusions(s,exercise)
+                context+=' Already completed titles: '+', '.join(sorted(avoid_titles)[-20:])
+                exercise=OpenTopicGenerator(max_attempts=2).generate(recommendation['topic'],recommendation['difficulty'],'Python',context=context,avoid_signatures=avoid_signatures,avoid_titles=avoid_titles)
             self.install_coding(s,exercise,workflow,recommendation['topic'])
         s['advanced_coding_practice_focus']=recommendation
         step=s['journey_workspace']['steps'][s['journey_workspace']['index']]
@@ -186,6 +220,8 @@ class Application:
             raise
         s.pop('advanced_coding_execution_preview',None)
         s.update(advanced_coding_submission_record=record,advanced_coding_submission_source=code,advanced_coding_editor=code)
+        from backend.coding_history import remember_completion
+        remember_completion(s)
         s.pop('_assessment_pending',None);save_state(s)
     def hint(self,s,code):
         exercise=s.get('advanced_coding_exercise')
