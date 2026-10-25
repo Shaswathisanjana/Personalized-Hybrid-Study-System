@@ -1,0 +1,8 @@
+﻿export type TopicOption={value:string;label:string;group:string};
+export function TopicFields({label,value,onChange,options,disabled=false,selectLabel=label+' options',inputLabel=label}:{label:string;value:string;onChange:(v:string)=>void;options:TopicOption[];disabled?:boolean;selectLabel?:string;inputLabel?:string}){
+ const selected=options.some(o=>o.value===value)?value:'';
+ return <div className="topic-choice-fields"><label>{selectLabel}<select aria-label={selectLabel} value={selected} onChange={e=>onChange(e.target.value)} disabled={disabled}><option value="">Choose from the topic list</option>{[...new Set(options.map(o=>o.group))].map(group=><optgroup label={group} key={group}>{options.filter(o=>o.group===group).map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</optgroup>)}</select></label><label>{inputLabel}<input aria-label={inputLabel} value={value} onChange={e=>onChange(e.target.value)} disabled={disabled} maxLength={500} placeholder="Or type any topic you want"/></label></div>;
+}
+export function codingTopicOptions(verified:string[]):TopicOption[]{
+ return [...verified.map(value=>({value,label:value,group:'Verified Python exercises'})),...['Python Loops','Python Lists','Python Dictionaries','Python Sets','Python Tuples','linked lists','Stacks','Queues','Binary Trees','Binary Search Trees','Sorting Algorithms','Hash Tables','Graphs','Dynamic Programming','Backtracking','Greedy Algorithms','Object-Oriented Programming','File Handling','Exception Handling'].map(value=>({value,label:value==='linked lists'?'Linked Lists':value,group:'AI-generated exercises (validated before use)'}))];
+}

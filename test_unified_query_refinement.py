@@ -22,8 +22,11 @@ def route_payload(query):
     fixtures = {
         "Give me a coding problem on Arrays": ("Arrays", ["coding"], "search"),
         "Give me a coding problem on Strings": ("Strings", ["coding"], "search"),
+        "Give me a coding problem on linked list traversal": ("linked list traversal", ["coding"], "search"),
         "Teach me recursion": ("Recursion", ["learning"], "search"),
         "Teach me arrays": ("Arrays", ["learning"], "search"),
+        "Teach me Arrays": ("Arrays", ["learning"], "search"),
+        "Teach me Python Recursion": ("Recursion", ["learning"], "search"),
         "Give me a coding problem on linked lists": ("linked lists", ["coding"], "search"),
         "Find research papers about agentic AI": ("agentic AI", ["research"], "search"),
         "Compare my uploaded research papers": ("Your research collection", ["research"], "collection"),

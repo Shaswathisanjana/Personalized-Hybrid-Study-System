@@ -73,7 +73,10 @@
     "frontend/e2e/loading.spec.ts",
     "WEB_LOADING_PERFORMANCE_REPORT.md",
     "frontend/e2e/agent-buttons.spec.ts",
-    "AGENT_BUTTONS_REPORT.md"
+    "AGENT_BUTTONS_REPORT.md",
+    "frontend/src/components/TopicFields.tsx",
+    "frontend/e2e/topic-options.spec.ts",
+    "TOPIC_OPTIONS_REPORT.md"
   ],
   "latest_refinement": "CODE_REVIEW_FIX_REPORT.md",
   "generated_content_excluded": [
